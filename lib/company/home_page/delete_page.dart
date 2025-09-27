@@ -61,6 +61,11 @@ class DeleteHallPage extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(20), // Rounded bottom corners
+          ),
+        ),
       ),
       body: Center(
         child: Card(

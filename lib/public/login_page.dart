@@ -117,16 +117,19 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       final data = jsonDecode(response.body);
+
       if (data['success'] == true) {
         final user = data['user'];
         final hall = data['hall'];
 
+        // If backend sends hall info, show the logo
         if (hall != null && hall['logo'] != null) {
           setState(() => _hallLogoBase64 = hall['logo']);
         }
 
-        if (hall != null && hall['is_active'] == false) {
-          _showMessage("❌ This hall is inactive. Please contact support.");
+        // Show message from backend (handles blocked/inactive halls)
+        if (data['message'] != null && data['message'] != "Login successful") {
+          _showMessage(data['message']);
           return;
         }
 
@@ -241,9 +244,6 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       validator: (value) {
                         if (value!.isEmpty) return "Enter password";
-                        if (value.length < 6) {
-                          return "Password must be at least 6 characters";
-                        }
                         return null;
                       },
                     ),

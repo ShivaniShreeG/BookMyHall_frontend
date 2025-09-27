@@ -83,6 +83,12 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
         ),
         backgroundColor: const Color(0xFF5B6547), // Olive Green 🌿
         iconTheme: const IconThemeData(color: Color(0xFFD8C9A9)), // Muted Tan 🏺
+        elevation: 4,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(20),
+          ),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),

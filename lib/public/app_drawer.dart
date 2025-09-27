@@ -140,19 +140,6 @@ class _AppDrawerState extends State<AppDrawer> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.lock, color: Color(0xFF5B6547)),
-                    title: const Text('Change Password',
-                        style: TextStyle(color: Color(0xFF5B6547))),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const ChangePasswordPage()),
-                      );
-                    },
-                  ),
-                  ListTile(
                     leading: const Icon(Icons.edit, color: Color(0xFF5B6547)),
                     title: const Text('Edit profile',
                         style: TextStyle(color: Color(0xFF5B6547))),
@@ -162,6 +149,19 @@ class _AppDrawerState extends State<AppDrawer> {
                         context,
                         MaterialPageRoute(
                             builder: (context) => const EditProfilePage()),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.lock, color: Color(0xFF5B6547)),
+                    title: const Text('Change Password',
+                        style: TextStyle(color: Color(0xFF5B6547))),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const ChangePasswordPage()),
                       );
                     },
                   ),

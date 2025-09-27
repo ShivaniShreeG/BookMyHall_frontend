@@ -24,6 +24,7 @@ class _MainNavigationState extends State<MainNavigation> {
   bool isLoading = true;
   late List<Widget> _pages;
   Timer? _sessionTimer;
+  bool _isDialogShown = false; // Prevent multiple dialogs
 
   @override
   void initState() {
@@ -69,7 +70,6 @@ class _MainNavigationState extends State<MainNavigation> {
         _pages = const [
           AdminDashboard(),
           AdminManagePage(),
-          Center(child: Text("Booking Details Coming Soon")),
         ];
       } else {
         _pages = const [
@@ -78,7 +78,10 @@ class _MainNavigationState extends State<MainNavigation> {
       }
     });
 
-    // Start session validation timer
+    // Immediately validate session
+    await _validateSession();
+
+    // Start periodic session validation
     _sessionTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _validateSession();
     });
@@ -110,6 +113,8 @@ class _MainNavigationState extends State<MainNavigation> {
 
   // Validate session by checking hall and user active status
   Future<void> _validateSession() async {
+    if (_isDialogShown) return; // prevent multiple dialogs
+
     final prefs = await SharedPreferences.getInstance();
     final hallId = prefs.getInt('hallId');
     final userId = prefs.getInt('userId');
@@ -124,12 +129,36 @@ class _MainNavigationState extends State<MainNavigation> {
         final data = jsonDecode(response.body);
 
         final userActive = data['is_active'] ?? false;
-        final hallActive = data['hall']?['is_active'] ?? false;
+        final hall = data['hall'];
 
-        if (!hallActive) {
-          _showInactiveDialog("This hall has been blocked by the administrator.");
-        } else if (!userActive) {
-          _showInactiveDialog("Your user account has been deactivated.");
+        if (hall != null) {
+          final hallActive = hall['is_active'] ?? false;
+
+          // Get hall block reason only if it exists
+          String hallBlockReason = '';
+          if (hall['hallBlockReason'] != null && hall['hallBlockReason'].toString().isNotEmpty) {
+            hallBlockReason = hall['hallBlockReason'];
+          } else if (hall['hallBlocks'] != null && hall['hallBlocks'].isNotEmpty) {
+            hallBlockReason = hall['hallBlocks'][0]['reason'] ?? '';
+          }
+
+          if (!hallActive) {
+            _isDialogShown = true;
+            await _showInactiveDialog(
+              hallBlockReason.isNotEmpty
+                  ? "This hall is inactive:\n\"$hallBlockReason\"\nPlease contact administrator."
+                  : "This hall is inactive. Please contact administrator.",
+            );
+            _isDialogShown = false;
+            return;
+          }
+        }
+
+        // Check user inactive status
+        if (!userActive) {
+          _isDialogShown = true;
+          await _showInactiveDialog("Your user account has been deactivated.");
+          _isDialogShown = false;
         }
       } else {
         debugPrint("❌ Session validation failed: ${response.body}");
@@ -139,31 +168,56 @@ class _MainNavigationState extends State<MainNavigation> {
     }
   }
 
-  // Show blocking dialog
+  // Show blocking dialog with theme
   Future<void> _showInactiveDialog(String reason) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.clear(); // Clear session
 
     if (!mounted) return;
 
-    showDialog(
+    return showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text("Access Denied"),
-        content: Text(reason),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () {
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-                    (route) => false,
-              );
-            },
-            child: const Text("Login"),
+      builder: (_) => WillPopScope(
+        onWillPop: () async => false, // Disable back button
+        child: AlertDialog(
+          backgroundColor: const Color(0xFFF3EAD6), // Light tan background
+          title: Text(
+            "Access Denied",
+            style: const TextStyle(
+              color: Color(0xFF5B6547), // Olive Green 🌿
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ],
+          content: Text(
+            reason,
+            style: const TextStyle(
+              color: Color(0xFF5B6547), // Olive Green 🌿
+              fontSize: 16,
+            ),
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF5B6547), // Olive Green 🌿
+                  foregroundColor: const Color(0xFFD8C9A9), // Muted Tan 🏺
+                  minimumSize: const Size(120, 40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                        (route) => false,
+                  );
+                },
+                child: const Text("Login"),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -177,7 +231,12 @@ class _MainNavigationState extends State<MainNavigation> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Color(0xFFF3EAD6),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF5B6547), // Olive Green 🌿
+          ),
+        ),
       );
     }
 

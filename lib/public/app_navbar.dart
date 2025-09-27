@@ -27,16 +27,12 @@ class BottomNavbar extends StatelessWidget {
       unselectedItemColor: const Color(0xFFD8C9A9).withOpacity(0.7), // lighter tan for unselected
       items: const [
         BottomNavigationBarItem(
-          icon: Icon(Icons.dashboard),
-          label: "Dashboard",
+          icon: Icon(Icons.home),
+          label: "Home",
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.manage_accounts),
           label: "Manage",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.settings),
-          label: "Settings",
         ),
       ],
     );

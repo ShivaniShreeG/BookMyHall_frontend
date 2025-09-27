@@ -17,15 +17,18 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
   // Controllers
   final _userIdController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _designationController =
-  TextEditingController(text: "Manager"); // default
+  String _designation = "Manager";
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isLoadingAdmins = true;
   bool _showForm = false;
   List<Map<String, dynamic>> _admins = [];
+
+  final Color primaryColor = const Color(0xFF5B6547);
+  final Color backgroundColor = const Color(0xFFD8C9A9);
 
   @override
   void initState() {
@@ -39,7 +42,7 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
     if (hallId == null) return;
 
     try {
-      final url = Uri.parse("$baseUrl/admins/$hallId"); // API to fetch all admins
+      final url = Uri.parse("$baseUrl/admins/$hallId");
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -50,6 +53,10 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
       }
     } catch (e) {
       debugPrint("❌ Error fetching admins: $e");
+    } finally {
+      setState(() {
+        _isLoadingAdmins = false;
+      });
     }
   }
 
@@ -73,7 +80,7 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
       final body = jsonEncode({
         "user_id": int.parse(_userIdController.text.trim()),
         "password": _passwordController.text.trim(),
-        "designation": "Manager",
+        "designation": _designation,
         "name": _nameController.text.trim(),
         "phone": _phoneController.text.trim(),
         "email": _emailController.text.trim(),
@@ -99,10 +106,10 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
         _nameController.clear();
         _phoneController.clear();
         _emailController.clear();
-
         setState(() {
+          _designation = "Manager";
           _showForm = false;
-          _admins.insert(0, newAdmin); // add new admin to list
+          _admins.insert(0, newAdmin);
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -152,28 +159,46 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Delete Admin"),
-        content: Text("Do you want to delete admin with User ID $userId?"),
+        backgroundColor: backgroundColor,
+        title: Text("Delete Admin", style: TextStyle(color: primaryColor)),
+        content: Text("Do you want to delete admin with User ID $userId?",
+            style: TextStyle(color: primaryColor)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+            child: Text("Cancel", style: TextStyle(color: primaryColor)),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
             onPressed: () {
-              Navigator.pop(context); // Close dialog
+              Navigator.pop(context);
               _deleteAdmin(userId);
             },
-            child: const Text("Confirm"),
+            child: Text("Confirm", style: TextStyle(color: backgroundColor)),
           ),
         ],
       ),
     );
   }
 
+  InputDecoration _buildInputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: primaryColor),
+      enabledBorder: UnderlineInputBorder(
+        borderSide: BorderSide(color: primaryColor),
+      ),
+      focusedBorder: UnderlineInputBorder(
+        borderSide: BorderSide(color: primaryColor),
+      ),
+    );
+  }
+
   Widget _buildAdminForm() {
     return Card(
-      elevation: 4,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      color: backgroundColor,
       margin: const EdgeInsets.symmetric(vertical: 12),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -183,50 +208,69 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
             children: [
               TextFormField(
                 controller: _userIdController,
-                decoration: const InputDecoration(labelText: "User ID"),
+                decoration: _buildInputDecoration("User ID"),
                 keyboardType: TextInputType.number,
-                validator: (value) =>
-                value == null || value.isEmpty ? "Enter user ID" : null,
+                cursorColor: primaryColor,
+                style: TextStyle(color: primaryColor),
+                validator: (value) => value == null || value.isEmpty ? "Enter user ID" : null,
               ),
               TextFormField(
                 controller: _passwordController,
-                decoration: const InputDecoration(labelText: "Password"),
+                decoration: _buildInputDecoration("Password"),
                 obscureText: true,
-                validator: (value) =>
-                value == null || value.isEmpty ? "Enter password" : null,
+                cursorColor: primaryColor,
+                style: TextStyle(color: primaryColor),
+                validator: (value) => value == null || value.isEmpty ? "Enter password" : null,
               ),
-              TextFormField(
-                controller: _designationController,
-                readOnly: true,
-                decoration: const InputDecoration(labelText: "Designation"),
+              DropdownButtonFormField<String>(
+                value: _designation,
+                decoration: _buildInputDecoration("Designation"),
+                dropdownColor: backgroundColor,
+                style: TextStyle(color: primaryColor),
+                items: const [
+                  DropdownMenuItem(value: "Manager", child: Text("Manager")),
+                  DropdownMenuItem(value: "Owner", child: Text("Owner")),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _designation = value;
+                    });
+                  }
+                },
               ),
               TextFormField(
                 controller: _nameController,
-                decoration:
-                const InputDecoration(labelText: "Name (optional)"),
+                decoration: _buildInputDecoration("Name (optional)"),
+                cursorColor: primaryColor,
+                style: TextStyle(color: primaryColor),
               ),
               TextFormField(
                 controller: _phoneController,
-                decoration:
-                const InputDecoration(labelText: "Phone (optional)"),
+                decoration: _buildInputDecoration("Phone (optional)"),
                 keyboardType: TextInputType.phone,
+                cursorColor: primaryColor,
+                style: TextStyle(color: primaryColor),
               ),
               TextFormField(
                 controller: _emailController,
-                decoration:
-                const InputDecoration(labelText: "Email (optional)"),
+                decoration: _buildInputDecoration("Email (optional)"),
                 keyboardType: TextInputType.emailAddress,
+                cursorColor: primaryColor,
+                style: TextStyle(color: primaryColor),
               ),
               const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: backgroundColor,
+                      ),
                       onPressed: _isLoading ? null : _createAdmin,
                       child: _isLoading
-                          ? const CircularProgressIndicator(
-                        color: Colors.white,
-                      )
+                          ? CircularProgressIndicator(color: backgroundColor)
                           : const Text("Create Admin"),
                     ),
                   ),
@@ -235,7 +279,7 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
                     onPressed: () {
                       setState(() => _showForm = false);
                     },
-                    child: const Text("Close"),
+                    child: Text("Close", style: TextStyle(color: primaryColor)),
                   ),
                 ],
               ),
@@ -250,40 +294,110 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
     return Card(
       elevation: 2,
       margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListTile(
-        leading: const Icon(Icons.person),
-        title: Text("User ID: ${admin["user_id"] ?? "N/A"}"),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      color: backgroundColor,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text("Name: ${admin["name"]?.isNotEmpty == true ? admin["name"] : "-"}"),
-            Text("Phone: ${admin["phone"]?.isNotEmpty == true ? admin["phone"] : "-"}"),
-            Text("Email: ${admin["email"]?.isNotEmpty == true ? admin["email"] : "-"}"),
-            Text("Designation: ${admin["designation"] ?? "-"}"),
+            Icon(Icons.person, color: primaryColor, size: 40),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "User ID: ${admin["user_id"] ?? "N/A"}",
+                    style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Name: ${admin["name"]?.isNotEmpty == true ? admin["name"] : "-"}",
+                    style: TextStyle(color: primaryColor),
+                    softWrap: true,
+                  ),
+                  Text(
+                    "Phone: ${admin["phone"]?.isNotEmpty == true ? admin["phone"] : "-"}",
+                    style: TextStyle(color: primaryColor),
+                    softWrap: true,
+                  ),
+                  Text(
+                    "Email: ${admin["email"]?.isNotEmpty == true ? admin["email"] : "-"}",
+                    style: TextStyle(color: primaryColor),
+                    softWrap: true,
+                  ),
+                  Text(
+                    "Designation: ${admin["designation"] ?? "-"}",
+                    style: TextStyle(color: primaryColor),
+                    softWrap: true,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _showDeleteDialog(admin["user_id"]),
+                ),
+              ],
+            ),
           ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete, color: Colors.red),
-          onPressed: () {
-            _showDeleteDialog(admin["user_id"]);
-          },
         ),
       ),
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFECE5D8),
       appBar: AppBar(
-        title: const Text("Admins"),
+        backgroundColor: primaryColor,
+        title: const Text("Admins", style: TextStyle(color: Color(0xFFD8C9A9))),
+        iconTheme: const IconThemeData(color: Color(0xFFD8C9A9)),
       ),
-      body: SingleChildScrollView(
+      body: _isLoadingAdmins
+          ? Center(child: CircularProgressIndicator(color: Color(0xFF5B6547)))
+          : _admins.isEmpty && !_showForm
+          ? Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "No admins found.",
+              style: TextStyle(
+                color: primaryColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: backgroundColor,
+              ),
+              onPressed: () {
+                setState(() => _showForm = true);
+              },
+              child: const Text("Create Admin"),
+            ),
+          ],
+        ),
+      )
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             if (!_showForm)
               ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: backgroundColor,
+                ),
                 onPressed: () {
                   setState(() => _showForm = true);
                 },
@@ -291,8 +405,6 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
               ),
             if (_showForm) _buildAdminForm(),
             const SizedBox(height: 16),
-            if (_admins.isEmpty)
-              const Text("No admins found."),
             ..._admins.map(_buildAdminCard).toList(),
           ],
         ),

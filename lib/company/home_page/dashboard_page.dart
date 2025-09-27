@@ -67,6 +67,12 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         backgroundColor: const Color(0xFF5B6547),
         iconTheme: const IconThemeData(color: Color(0xFFD8C9A9)),
+        elevation: 4,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(20), // Rounded bottom corners
+          ),
+        ),
       ),
       body: hall == null
           ? const Center(

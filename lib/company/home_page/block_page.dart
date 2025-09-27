@@ -116,29 +116,40 @@ class _BlockHallPageState extends State<BlockHallPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFECE5D8),
-      appBar: _isLoading
-          ? AppBar(
-        backgroundColor: const Color(0xFF5B6547),
-        title: const Text(
-          'Loading...',
-          style: TextStyle(color: Color(0xFFD8C9A9)),
-        ),
-        iconTheme: const IconThemeData(color: Color(0xFFD8C9A9)),
-      )
-          : AppBar(
-        backgroundColor: const Color(0xFF5B6547),
-        elevation: 6,
-        title: Text(
-          "${_isActive == true ? 'Block' : 'Unblock'} - ${widget.hall['name'] ?? 'Hall'}",
-          style: const TextStyle(
-            color: Color(0xFFD8C9A9),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Color(0xFFD8C9A9)),
-      ),
-      body: _isLoading
+        appBar: _isLoading
+    ? AppBar(
+    backgroundColor: const Color(0xFF5B6547),
+    title: const Text(
+    'Loading...',
+    style: TextStyle(color: Color(0xFFD8C9A9)),
+    ),
+    iconTheme: const IconThemeData(color: Color(0xFFD8C9A9)),
+    shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(
+    bottom: Radius.circular(20), // Rounded bottom
+    ),
+    ),
+    )
+        : AppBar(
+    backgroundColor: const Color(0xFF5B6547),
+    elevation: 6,
+    title: Text(
+    "${_isActive == true ? 'Block' : 'Unblock'} - ${widget.hall['name'] ?? 'Hall'}",
+    style: const TextStyle(
+    color: Color(0xFFD8C9A9),
+    fontWeight: FontWeight.bold,
+    ),
+    ),
+    centerTitle: true,
+    iconTheme: const IconThemeData(color: Color(0xFFD8C9A9)),
+    shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(
+    bottom: Radius.circular(20), // Rounded bottom
+    ),
+    ),
+    ),
+
+    body: _isLoading
           ? const Center(
         child: CircularProgressIndicator(color: Color(0xFFD8C9A9)),
       )
