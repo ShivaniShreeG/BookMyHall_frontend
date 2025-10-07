@@ -22,16 +22,12 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _rememberMe = false;
 
-  String? _hallLogoBase64;
-
   @override
   void initState() {
     super.initState();
-    _fetchFirstHallLogo();
     _loadRememberMe();
   }
 
-  // Load Remember Me data
   Future<void> _loadRememberMe() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -44,29 +40,34 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
-  Future<void> _fetchFirstHallLogo() async {
-    try {
-      final uri = Uri.parse('$baseUrl/halls/0');
-      final response = await http.get(uri);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _hallLogoBase64 = data['logo'];
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching hall logo: $e');
-    }
-  }
-
+  // ✅ Custom styled SnackBar
   void _showMessage(String message) {
+    const Color oliveGreen = Color(0xFF5B6547);
+    const Color mutedTan = Color(0xFFD8C9A9);
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: mutedTan,
+            fontSize: 16,
+          ),
+        ),
+        backgroundColor: oliveGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 0,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 
-  // Save user data including Remember Me
   Future<void> _saveUserData(String role, int hallId, int userId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('role', role);
@@ -89,7 +90,6 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final uri = Uri.parse("$baseUrl/auth/login");
-
       Map<String, dynamic> body = {
         "userId": int.tryParse(_userIdController.text.trim()) ?? 0,
         "password": _passwordController.text.trim(),
@@ -111,30 +111,13 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      if (response.body.isEmpty) {
-        _showMessage("Empty response from server");
-        return;
-      }
-
       final data = jsonDecode(response.body);
 
       if (data['success'] == true) {
         final user = data['user'];
-        final hall = data['hall'];
+        final message = data['message'] ?? "Login successful";
 
-        // If backend sends hall info, show the logo
-        if (hall != null && hall['logo'] != null) {
-          setState(() => _hallLogoBase64 = hall['logo']);
-        }
-
-        // Show message from backend (handles blocked/inactive halls)
-        if (data['message'] != null && data['message'] != "Login successful") {
-          _showMessage(data['message']);
-          return;
-        }
-
-        _showMessage(data['message'] ?? "Login successful");
-
+        _showMessage(message);
         await _saveUserData(user['role'], user['hallId'], user['userId']);
 
         if (!mounted) return;
@@ -142,10 +125,6 @@ class _LoginPageState extends State<LoginPage> {
           context,
           MaterialPageRoute(builder: (context) => const MainNavigation()),
         );
-
-        _hallIdController.clear();
-        _userIdController.clear();
-        _passwordController.clear();
       } else {
         _showMessage(data['message'] ?? "Login failed");
       }
@@ -157,137 +136,207 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    const Color oliveGreen = Color(0xFF5B6547);
+    const Color mutedTan = Color(0xFFD8C9A9);
+    const Color beige = Color(0xFFF3EAD6);
+
+    // 📱 Responsive sizing based on screen width
+    final size = MediaQuery.of(context).size;
+    final double screenWidth = size.width;
+    final double screenHeight = size.height;
+    final double textScale = screenWidth / 375; // base iPhone 11 width
+    final double boxScale = screenHeight / 812; // base height reference
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF3EAD6),
+      backgroundColor: beige,
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.symmetric(
+            horizontal: 24 * textScale,
+            vertical: 40 * boxScale,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_hallLogoBase64 != null)
-                CircleAvatar(
-                  radius: 50,
-                  backgroundImage: MemoryImage(base64Decode(_hallLogoBase64!)),
-                  backgroundColor: const Color(0xFFD8C9A9),
-                )
-              else
-                const CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Color(0xFFD8C9A9),
-                  child: Icon(Icons.home, size: 50, color: Color(0xFF5B6547)),
-                ),
-              const SizedBox(height: 16),
-              const Text(
-                "Login",
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF5B6547),
-                ),
+              // Logo
+              Image.asset(
+                'assets/logo.png',
+                height: 100 * boxScale,
+                width: 200 * textScale,
               ),
-              const SizedBox(height: 32),
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _hallIdController,
-                      decoration: InputDecoration(
-                        labelText: "Hall ID",
-                        labelStyle: const TextStyle(color: Color(0xFF5B6547)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+              SizedBox(height: 20 * boxScale),
+
+              // Card
+              Container(
+                padding: EdgeInsets.all(24 * boxScale),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20 * boxScale),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 10 * boxScale,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      Icon(Icons.lock_outline,
+                          color: oliveGreen, size: 40 * boxScale),
+                      SizedBox(height: 12 * boxScale),
+                      Text(
+                        "Login",
+                        style: TextStyle(
+                          fontSize: 26 * textScale,
+                          fontWeight: FontWeight.bold,
+                          color: oliveGreen,
                         ),
                       ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        if (value != null &&
-                            value.isNotEmpty &&
-                            int.tryParse(value) == null) {
-                          return "Enter a valid Hall ID";
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _userIdController,
-                      decoration: InputDecoration(
-                        labelText: "User ID",
-                        labelStyle: const TextStyle(color: Color(0xFF5B6547)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      SizedBox(height: 24 * boxScale),
+
+                      // Hall ID
+                      TextFormField(
+                        controller: _hallIdController,
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(Icons.home,
+                              color: oliveGreen, size: 22 * boxScale),
+                          labelText: "Hall ID",
+                          labelStyle:
+                          TextStyle(color: oliveGreen, fontSize: 14 * textScale),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                            BorderRadius.circular(12 * boxScale),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value != null &&
+                              value.isNotEmpty &&
+                              int.tryParse(value) == null) {
+                            return "Enter a valid Hall ID";
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16 * boxScale),
+
+                      // User ID
+                      TextFormField(
+                        controller: _userIdController,
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(Icons.person,
+                              color: oliveGreen, size: 22 * boxScale),
+                          labelText: "User ID",
+                          labelStyle:
+                          TextStyle(color: oliveGreen, fontSize: 14 * textScale),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                            BorderRadius.circular(12 * boxScale),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return "User ID is required";
+                          }
+                          if (int.tryParse(value.trim()) == null) {
+                            return "Enter a valid User ID";
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16 * boxScale),
+
+                      // Password
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(Icons.lock,
+                              color: oliveGreen, size: 22 * boxScale),
+                          labelText: "Password",
+                          labelStyle:
+                          TextStyle(color: oliveGreen, fontSize: 14 * textScale),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                            BorderRadius.circular(12 * boxScale),
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: oliveGreen,
+                              size: 22 * boxScale,
+                            ),
+                            onPressed: () {
+                              setState(() =>
+                              _obscurePassword = !_obscurePassword);
+                            },
+                          ),
+                        ),
+                        validator: (value) =>
+                        (value == null || value.trim().isEmpty)
+                            ? "Password is required"
+                            : null,
+                      ),
+                      SizedBox(height: 12 * boxScale),
+
+                      // Remember Me
+                      Row(
+                        children: [
+                          Transform.scale(
+                            scale: 1 * textScale,
+                            child: Checkbox(
+                              value: _rememberMe,
+                              activeColor: oliveGreen,
+                              onChanged: (value) {
+                                setState(() {
+                                  _rememberMe = value ?? false;
+                                });
+                              },
+                            ),
+                          ),
+                          Text(
+                            "Remember Me",
+                            style: TextStyle(fontSize: 14 * textScale),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16 * boxScale),
+
+                      // Login button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50 * boxScale,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: oliveGreen,
+                            foregroundColor: mutedTan,
+                            shape: RoundedRectangleBorder(
+                              borderRadius:
+                              BorderRadius.circular(12 * boxScale),
+                            ),
+                          ),
+                          onPressed: _isLoading ? null : _login,
+                          child: _isLoading
+                              ? const CircularProgressIndicator(
+                              color: Colors.white)
+                              : Text(
+                            "Login",
+                            style: TextStyle(
+                                fontSize: 18 * textScale,
+                                fontWeight: FontWeight.w500),
+                          ),
                         ),
                       ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) =>
-                      value!.isEmpty ? "Enter user ID" : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: "Password",
-                        labelStyle: const TextStyle(color: Color(0xFF5B6547)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off),
-                          onPressed: () => setState(
-                                  () => _obscurePassword = !_obscurePassword),
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value!.isEmpty) return "Enter password";
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    // Remember Me checkbox
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _rememberMe,
-                          onChanged: (value) {
-                            setState(() {
-                              _rememberMe = value ?? false;
-                            });
-                          },
-                        ),
-                        const Text("Remember Me"),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Login button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF5B6547),
-                          foregroundColor: const Color(0xFFD8C9A9),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: _isLoading ? null : _login,
-                        child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text("Login"),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      "OR",
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 12),
-                    Center(
-                      child: TextButton(
+                      SizedBox(height: 12 * boxScale),
+
+                      // Forgot Password
+                      TextButton(
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -295,19 +344,21 @@ class _LoginPageState extends State<LoginPage> {
                                 builder: (_) => const ForgotPasswordPage()),
                           );
                         },
-                        child: const Text(
+                        child: Text(
                           "Forgot Password?",
-                          style: TextStyle(color: Color(0xFF5B6547)),
+                          style: TextStyle(
+                              color: oliveGreen, fontSize: 14 * textScale),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
+
+              SizedBox(height: 24 * boxScale),
+              Text(
                 "© Ramchin Technologies Private Limited",
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: Colors.grey, fontSize: 12 * textScale),
               ),
             ],
           ),

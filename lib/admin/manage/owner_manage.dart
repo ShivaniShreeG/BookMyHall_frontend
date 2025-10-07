@@ -6,6 +6,7 @@ import '../../public/config.dart'; // where baseUrl is defined
 import 'create_admin.dart';
 import 'default_value_page.dart';
 import 'add_peak_hour.dart';
+import 'add_instruction_page.dart';
 
 class OwnerPage extends StatefulWidget {
   const OwnerPage({super.key});
@@ -209,6 +210,17 @@ class _OwnerPageState extends State<OwnerPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const DefaultValuesPage()),
+                    );
+                  },
+                  size: buttonSize,
+                ),
+                _buildManageButton(
+                  icon: Icons.rule,
+                  label: "Instructions",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HallInstructionsPage()),
                     );
                   },
                   size: buttonSize,

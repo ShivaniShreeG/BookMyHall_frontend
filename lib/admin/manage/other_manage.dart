@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../public/config.dart'; // where baseUrl is defined
 import 'add_peak_hour.dart';
 import 'default_value_page.dart';
+import 'add_instruction_page.dart';
 
 class OtherManagePage extends StatefulWidget {
   const OtherManagePage({super.key});
@@ -200,6 +201,17 @@ class _OtherManagePageState extends State<OtherManagePage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const DefaultValuesPage()),
+                    );
+                  },
+                  size: buttonSize,
+                ),
+                _buildManageButton(
+                  icon: Icons.rule,
+                  label: "Instructions",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HallInstructionsPage()),
                     );
                   },
                   size: buttonSize,

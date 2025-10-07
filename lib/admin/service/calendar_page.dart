@@ -6,7 +6,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../public/config.dart';
 import 'booking_page.dart';
 import 'package:intl/intl.dart';
-import 'update_page.dart'; // for update mode
+import 'change_booking_date_page.dart'; // for update mode
 import 'cancel_page.dart';
 
 enum CalendarMode { book, cancel, update }
@@ -22,6 +22,7 @@ class CalendarPage extends StatefulWidget {
 
 class _CalendarPageState extends State<CalendarPage> {
   Map<String, dynamic> calendarData = {};
+  Map<String, dynamic>? hallDetails; // 🔹 Hall details
   DateTime focusedDay = DateTime.now();
   DateTime? selectedDay;
   bool _loading = true;
@@ -33,15 +34,18 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void initState() {
     super.initState();
-    _loadCalendar();
+    _loadData();
   }
 
-  Future<void> _loadCalendar() async {
+  Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final hallId = prefs.getInt('hallId');
 
     if (hallId != null) {
-      await _fetchCalendar(hallId);
+      await Future.wait([
+        _fetchCalendar(hallId),
+        _fetchHallDetails(hallId),
+      ]);
     } else {
       setState(() => _loading = false);
     }
@@ -52,15 +56,26 @@ class _CalendarPageState extends State<CalendarPage> {
       final url = Uri.parse('$baseUrl/calendar/$hallId');
       final response = await http.get(url);
       if (response.statusCode == 200) {
-        setState(() {
-          calendarData = jsonDecode(response.body);
-          _loading = false;
-        });
-      } else {
-        setState(() => _loading = false);
+        calendarData = jsonDecode(response.body);
       }
     } catch (e) {
+      // ignore
+    } finally {
       setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _fetchHallDetails(int hallId) async {
+    try {
+      final url = Uri.parse('$baseUrl/halls/$hallId');
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        hallDetails = jsonDecode(response.body);
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setState(() {});
     }
   }
 
@@ -95,13 +110,17 @@ class _CalendarPageState extends State<CalendarPage> {
         return;
       }
 
-      await Navigator.push(
+      final bookingSuccess = await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => BookingPage(selectedDate: selected)),
       );
 
+      if (bookingSuccess == true) {
+        final prefs = await SharedPreferences.getInstance();
+        final hallId = prefs.getInt('hallId');
+        if (hallId != null) await _fetchCalendar(hallId);
+      }
     } else {
-      // Cancel or Update mode
       final prefs = await SharedPreferences.getInstance();
       final hallId = prefs.getInt('hallId');
       if (hallId == null) return;
@@ -110,7 +129,7 @@ class _CalendarPageState extends State<CalendarPage> {
         final url = Uri.parse('$baseUrl/bookings/$hallId/date/$dateStr');
         final response = await http.get(url);
 
-        if (response.statusCode != 200) return; // no booking
+        if (response.statusCode != 200) return;
         final bookingDetails = jsonDecode(response.body);
 
         showDialog(
@@ -152,7 +171,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         const SizedBox(width: 12),
                         ElevatedButton(
                           onPressed: () async {
-                            Navigator.pop(context); // Close dialog first
+                            Navigator.pop(context);
 
                             final prefs = await SharedPreferences.getInstance();
                             final userId = prefs.getInt('userId');
@@ -161,7 +180,6 @@ class _CalendarPageState extends State<CalendarPage> {
                             bool actionSuccess = false;
 
                             if (widget.mode == CalendarMode.cancel) {
-                              // Await result from CancelBookingPage
                               actionSuccess = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -173,22 +191,18 @@ class _CalendarPageState extends State<CalendarPage> {
                                 ),
                               ) ?? false;
                             } else if (widget.mode == CalendarMode.update) {
-                              // Await result from UpdateBookingPage
                               actionSuccess = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => UpdateBookingPage(
+                                  builder: (_) => ChangeBookingDatePage(
                                     hallId: bookingDetails['hall_id'],
                                     bookingId: bookingDetails['booking_id'],
-                                    userId: userId,
-                                    bookingDetails: bookingDetails,
                                   ),
                                 ),
                               ) ?? false;
                             }
 
                             if (actionSuccess) {
-                              // Refresh calendar after successful cancel/update
                               final hallId = prefs.getInt('hallId');
                               if (hallId != null) await _fetchCalendar(hallId);
                             }
@@ -198,7 +212,7 @@ class _CalendarPageState extends State<CalendarPage> {
                             foregroundColor: const Color(0xFFD8C9A9),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Text(widget.mode == CalendarMode.cancel ? "Cancel" : "Update"),
+                          child: Text(widget.mode == CalendarMode.cancel ? "Cancel" : "Change"),
                         ),
                       ],
                     ),
@@ -218,7 +232,6 @@ class _CalendarPageState extends State<CalendarPage> {
       focusedDay = focused;
     });
   }
-
 
   Widget _buildDayCell(DateTime day, {bool isSelected = false, bool isToday = false}) {
     final dayColor = _getDayColor(day);
@@ -307,6 +320,59 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  Widget _buildHallCard(Map<String, dynamic> hall) {
+    return Card(
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      color: const Color(0xFFF3E2CB),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: const Color(0xFF5B6547),
+              backgroundImage: hall['logo'] != null ? MemoryImage(base64Decode(hall['logo'])) : null,
+              child: hall['logo'] == null
+                  ? const Icon(Icons.home_work, size: 35, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hall['name'] ?? 'No Name',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF5B6547),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hall['address'] ?? 'No Address',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF5B6547),
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -317,7 +383,7 @@ class _CalendarPageState extends State<CalendarPage> {
               ? "Booking"
               : widget.mode == CalendarMode.cancel
               ? "Cancel Booking"
-              : "Update Booking",
+              : "Change Date",
           style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFD8C9A9)),
         ),
         backgroundColor: oliveGreen,
@@ -327,70 +393,75 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF5B6547)))
-          : Column(
-        children: [
-          const SizedBox(height: 20),
-          Card(
-            color: lightTan,
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: TableCalendar(
-                firstDay: DateTime.now(),
-                lastDay: DateTime.utc(2100, 12, 31),
-                focusedDay: focusedDay,
-                selectedDayPredicate: (day) => isSameDay(selectedDay, day),
-                onDaySelected: _onDaySelected,
-                onPageChanged: (focused) => setState(() => focusedDay = focused),
-                calendarFormat: CalendarFormat.month,
-                headerStyle: const HeaderStyle(
-                  titleCentered: true,
-                  formatButtonVisible: false,
-                  titleTextStyle: TextStyle(color: Color(0xFF5B6547), fontWeight: FontWeight.bold, fontSize: 18),
-                  leftChevronIcon: Icon(Icons.chevron_left, color: Color(0xFF5B6547)),
-                  rightChevronIcon: Icon(Icons.chevron_right, color: Color(0xFF5B6547)),
-                ),
-                daysOfWeekStyle: const DaysOfWeekStyle(
-                  weekdayStyle: TextStyle(color: Color(0xFF5B6547), fontWeight: FontWeight.bold),
-                  weekendStyle: TextStyle(color: Color(0xFF5B6547), fontWeight: FontWeight.bold),
-                ),
-                enabledDayPredicate: (day) {
-                  if (widget.mode == CalendarMode.book) return true;
-                  final dateStr = day.toIso8601String().split('T')[0];
-                  final entry = calendarData[dateStr];
-                  return entry != null && entry['booked'].isNotEmpty;
-                },
-                calendarBuilders: CalendarBuilders(
-                  defaultBuilder: (context, day, focusedDay) {
-                    final isSelected = isSameDay(day, selectedDay);
-                    return _buildDayCell(day, isSelected: isSelected);
-                  },
-                  todayBuilder: (context, day, focusedDay) {
-                    final isSelected = isSameDay(day, selectedDay);
-                    return _buildDayCell(day, isSelected: isSelected, isToday: true);
-                  },
-                  selectedBuilder: (context, day, focusedDay) {
-                    return _buildDayCell(day, isSelected: true);
-                  },
-                  outsideBuilder: (context, day, focusedDay) => Container(
-                    margin: const EdgeInsets.all(4),
-                    alignment: Alignment.center,
-                    child: Text('${day.day}', style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
+          : SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            if (hallDetails != null) _buildHallCard(hallDetails!),
+            const SizedBox(height: 20),
+            Card(
+              color: lightTan,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: TableCalendar(
+                  firstDay: DateTime.now(),
+                  lastDay: DateTime.utc(2100, 12, 31),
+                  focusedDay: focusedDay,
+                  selectedDayPredicate: (day) => isSameDay(selectedDay, day),
+                  onDaySelected: _onDaySelected,
+                  onPageChanged: (focused) => setState(() => focusedDay = focused),
+                  calendarFormat: CalendarFormat.month,
+                  headerStyle: const HeaderStyle(
+                    titleCentered: true,
+                    formatButtonVisible: false,
+                    titleTextStyle: TextStyle(color: Color(0xFF5B6547), fontWeight: FontWeight.bold, fontSize: 18),
+                    leftChevronIcon: Icon(Icons.chevron_left, color: Color(0xFF5B6547)),
+                    rightChevronIcon: Icon(Icons.chevron_right, color: Color(0xFF5B6547)),
                   ),
-                  disabledBuilder: (context, day, focusedDay) => Container(
-                    margin: const EdgeInsets.all(4),
-                    alignment: Alignment.center,
-                    child: Text('${day.day}', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                  daysOfWeekStyle: const DaysOfWeekStyle(
+                    weekdayStyle: TextStyle(color: Color(0xFF5B6547), fontWeight: FontWeight.bold),
+                    weekendStyle: TextStyle(color: Color(0xFF5B6547), fontWeight: FontWeight.bold),
+                  ),
+                  enabledDayPredicate: (day) {
+                    if (widget.mode == CalendarMode.book) return true;
+                    final dateStr = day.toIso8601String().split('T')[0];
+                    final entry = calendarData[dateStr];
+                    return entry != null && entry['booked'].isNotEmpty;
+                  },
+                  calendarBuilders: CalendarBuilders(
+                    defaultBuilder: (context, day, focusedDay) {
+                      final isSelected = isSameDay(day, selectedDay);
+                      return _buildDayCell(day, isSelected: isSelected);
+                    },
+                    todayBuilder: (context, day, focusedDay) {
+                      final isSelected = isSameDay(day, selectedDay);
+                      return _buildDayCell(day, isSelected: isSelected, isToday: true);
+                    },
+                    selectedBuilder: (context, day, focusedDay) {
+                      return _buildDayCell(day, isSelected: true);
+                    },
+                    outsideBuilder: (context, day, focusedDay) => Container(
+                      margin: const EdgeInsets.all(4),
+                      alignment: Alignment.center,
+                      child: Text('${day.day}', style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
+                    ),
+                    disabledBuilder: (context, day, focusedDay) => Container(
+                      margin: const EdgeInsets.all(4),
+                      alignment: Alignment.center,
+                      child: Text('${day.day}', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          _buildLegend(),
-        ],
+            const SizedBox(height: 20),
+            _buildLegend(),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
