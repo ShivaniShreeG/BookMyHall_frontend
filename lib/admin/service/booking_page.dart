@@ -423,7 +423,7 @@ class _BookingPageState extends State<BookingPage> {
           const SizedBox(width: 12),
 
           Container(
-            width: screenWidth * 0.50, // 55% of screen width
+            width: screenWidth * 0.42, // 55% of screen width
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: tan,
@@ -439,7 +439,11 @@ class _BookingPageState extends State<BookingPage> {
   @override
   Widget build(BuildContext context) {
     final formattedDate = DateFormat('dd-MM-yyyy').format(widget.selectedDate);
-    return Scaffold(
+    return  WillPopScope(
+        onWillPop: () async {
+          Navigator.pop(context, true); // send refresh signal
+          return false; // prevent default pop (we already did it)
+        },child:Scaffold(
       backgroundColor: beigeBackground,
       appBar: AppBar(
         backgroundColor: oliveGreen,
@@ -497,6 +501,18 @@ class _BookingPageState extends State<BookingPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: beigeBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: oliveGreen, width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 _sectionHeader("PERSONAL INFORMATION"),
                 const SizedBox(height: 8),
                 _plainRowWithTanValue(
@@ -609,7 +625,22 @@ class _BookingPageState extends State<BookingPage> {
                     },
                   ),
                 ),
+                ],
+            ),
+          ),
                 const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: beigeBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: oliveGreen, width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 _sectionHeader("BOOKING INFORMATION"),
                 const SizedBox(height: 12),
                   _plainRowWithTanValue(
@@ -629,68 +660,73 @@ class _BookingPageState extends State<BookingPage> {
                   ),
 
                 const SizedBox(height: 20),
+                // Event Type Dropdown Row
                 _plainRowWithTanValue(
                   "EVENT TYPE",
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        value: selectedEventType,
-                        isExpanded: true,
-                        items: eventTypes
-                            .map((e) => DropdownMenuItem(
-                          value: e,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tan.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: DropdownButtonFormField<String>(
+                      value: selectedEventType,
+                      isExpanded: true,
+                      items: eventTypes
+                          .map((e) => DropdownMenuItem(
+                        value: e,
+                        child: Center( // Center the text
                           child: Text(
                             e,
                             style: TextStyle(color: oliveGreen, fontSize: 16),
                           ),
-                        ))
-                            .toList(),
-                        onChanged: _showPdfButton
-                            ? null
-                            : (val) {
-                          setState(() {
-                            selectedEventType = val;
-                            if (val != "Other") customEventController.text = "";
-                          });
-                        },
-                        hint: Text(
-                          "Select any event", // <-- shows inside the field before selection
-                          style: TextStyle(color: oliveGreen.withOpacity(0.7), fontSize: 14),
                         ),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          filled: true,
-                          fillColor: tan.withOpacity(0.0),
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
+                      ))
+                          .toList(),
+                      onChanged: _showPdfButton
+                          ? null
+                          : (val) {
+                        setState(() {
+                          selectedEventType = val;
+                          if (val != "Other") customEventController.text = "";
+                        });
+                      },
+                      hint: Center( // Center the hint
+                        child: Text(
+                          "Select",
+                          style: TextStyle(color: oliveGreen.withOpacity(0.7)),
                         ),
-                        dropdownColor: beigeBackground,
-                        validator: (val) {
-                          if (val == null || val.isEmpty) return "Please select an event type";
-                          return null;
-                        },
                       ),
-                      if (selectedEventType == "Other")
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: TextFormField(
-                            controller: customEventController,
-                            style: TextStyle(color: oliveGreen),
-                            decoration: InputDecoration(
-                              labelText: "Custom Event",
-                              filled: true,
-                              fillColor: tan.withOpacity(0.12),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      dropdownColor: beigeBackground,
+                      validator: (val) {
+                        if (val == null || val.isEmpty) return "Please select an event type";
+                        return null;
+                      },
+                    ),
                   ),
                 ),
+                if (selectedEventType == "Other")
+                  _plainRowWithTanValue(
+                    "CUSTOM EVENT",
+                    TextFormField(
+                      controller: customEventController,
+                      style: TextStyle(color: oliveGreen, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: "Enter custom event",
+                        hintStyle: TextStyle(color: oliveGreen.withOpacity(0.7)),
+                        filled: true,
+                        fillColor: tan.withOpacity(0.2),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                    ),
+                  ),
 
                 _plainRowWithTanValue(
                   "ALLOTED FROM",
@@ -766,7 +802,22 @@ class _BookingPageState extends State<BookingPage> {
                     ),
                   ),
                 ),
+          ],
+            ),
+          ),
                 const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: beigeBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: oliveGreen, width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 _sectionHeader("PAYMENT DETAILS"),
                 const SizedBox(height: 8),
                 _plainRowWithTanValue(
@@ -817,6 +868,9 @@ class _BookingPageState extends State<BookingPage> {
                     },
                   ),
                 ),
+                ],
+            ),
+          ),
                 const SizedBox(height: 24),
                 if (_showPdfButton && _lastBooking != null && _hallDetails != null)
                   SizedBox(
@@ -870,7 +924,7 @@ class _BookingPageState extends State<BookingPage> {
             ),
           ),
     ),
-    );
+    ),);
   }
 
   Widget _sectionHeader(String title) {

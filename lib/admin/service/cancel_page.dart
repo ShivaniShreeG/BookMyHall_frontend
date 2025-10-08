@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'pdf/cancel_pdf_generator.dart';
+import '../../utils/hall_header.dart';
 import '../../public/config.dart';
 
 class CancelBookingPage extends StatefulWidget {
@@ -26,29 +28,27 @@ class CancelBookingPage extends StatefulWidget {
 class _CancelBookingPageState extends State<CancelBookingPage> {
   bool _loading = true;
   bool _canceled = false;
+  bool _showPdfButton = false; // Controls visibility of PDF button
   Map<String, dynamic>? booking;
   Map<String, dynamic>? _cancelData;
+  Map<String, dynamic>? _hallDetails;
 
   final TextEditingController reasonController = TextEditingController();
   final TextEditingController percentController = TextEditingController();
   final TextEditingController chargeController = TextEditingController();
 
   final Color primaryColor = const Color(0xFF5B6547);
-  final Color backgroundColor = const Color(0xFFD8C9A9);
+  final Color tanColor = const Color(0xFFD8C9A9);
   final Color scaffoldBackground = const Color(0xFFECE5D8);
 
   double billingTotal = 0;
-
   bool _updatingPercent = false;
   bool _updatingCharge = false;
-  bool _shownPercentWarning = false;
-  bool _shownChargeWarning = false;
 
   @override
   void initState() {
     super.initState();
     _loadBookingDetails();
-
     percentController.addListener(_onPercentChanged);
     chargeController.addListener(_onChargeChanged);
   }
@@ -57,120 +57,83 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
     if (_updatingPercent || billingTotal == 0 || _canceled) return;
     double? percent = double.tryParse(percentController.text);
     if (percent == null) return;
-
-    if (percent > 100) {
-      if (!_shownPercentWarning) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Percentage cannot exceed 100%")),
-        );
-        _shownPercentWarning = true;
-      }
-      percent = 100;
-    } else {
-      _shownPercentWarning = false;
-    }
+    if (percent > 100) percent = 100;
 
     _updatingCharge = true;
     double charge = billingTotal * percent / 100;
     if (charge > billingTotal) charge = billingTotal;
-
-    percentController.value = percentController.value.copyWith(
-      text: percent.toStringAsFixed(percent % 1 == 0 ? 0 : 2),
-      selection: TextSelection.fromPosition(
-          TextPosition(offset: percentController.text.length)),
-    );
-    chargeController.value = chargeController.value.copyWith(
-      text: charge.toStringAsFixed(charge % 1 == 0 ? 0 : 2),
-      selection: TextSelection.fromPosition(
-          TextPosition(offset: chargeController.text.length)),
-    );
+    chargeController.text = charge.toStringAsFixed(2);
     _updatingCharge = false;
   }
 
   void _onChargeChanged() {
     if (_updatingCharge || billingTotal == 0 || _canceled) return;
     double charge = double.tryParse(chargeController.text) ?? 0;
-
-    if (charge > billingTotal) {
-      if (!_shownChargeWarning) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Cancellation charge cannot exceed total")),
-        );
-        _shownChargeWarning = true;
-      }
-      charge = billingTotal;
-    } else {
-      _shownChargeWarning = false;
-    }
+    if (charge > billingTotal) charge = billingTotal;
 
     _updatingPercent = true;
-    chargeController.value = chargeController.value.copyWith(
-      text: charge.toStringAsFixed(charge % 1 == 0 ? 0 : 2),
-      selection: TextSelection.fromPosition(
-          TextPosition(offset: chargeController.text.length)),
-    );
-    percentController.value = percentController.value.copyWith(
-      text: ((charge / billingTotal) * 100).toStringAsFixed(2),
-      selection: TextSelection.fromPosition(
-          TextPosition(offset: percentController.text.length)),
-    );
+    percentController.text = ((charge / billingTotal) * 100).toStringAsFixed(2);
     _updatingPercent = false;
   }
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: TextStyle(
+            color: tanColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: primaryColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+
 
   Future<void> _loadBookingDetails() async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/cancels/${widget.hallId}/${widget.bookingId}'),
-      );
-
+      // Fetch booking and billing
+      final res = await http.get(Uri.parse('$baseUrl/cancels/${widget.hallId}/${widget.bookingId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
           booking = data;
-          if (booking!['billings'] != null &&
-              (booking!['billings'] as List).isNotEmpty) {
-            billingTotal =
-                (booking!['billings'][0]['total'] ?? 0).toDouble();
+          if (booking!['billings'] != null && (booking!['billings'] as List).isNotEmpty) {
+            billingTotal = (booking!['billings'][0]['total'] ?? 0).toDouble();
           }
         });
 
-        final defaultRes = await http.get(
-          Uri.parse('$baseUrl/default-values/${widget.hallId}'),
-        );
-
+        // Fetch default cancellation percent
+        final defaultRes = await http.get(Uri.parse('$baseUrl/default-values/${widget.hallId}'));
         if (defaultRes.statusCode == 200) {
           final defaults = jsonDecode(defaultRes.body) as List<dynamic>;
           final cancelDefault = defaults.firstWhere(
                 (d) => d['reason'].toString().toLowerCase() == 'cancel',
             orElse: () => null,
           );
-
           if (cancelDefault != null) {
-            final defaultPercent =
-                double.tryParse(cancelDefault['amount'].toString()) ?? 0;
-
-            percentController.text =
-                defaultPercent.clamp(0, 100).toStringAsFixed(
-                    defaultPercent % 1 == 0 ? 0 : 2);
-
+            final defaultPercent = double.tryParse(cancelDefault['amount'].toString()) ?? 0;
+            percentController.text = defaultPercent.clamp(0, 100).toStringAsFixed(
+                defaultPercent % 1 == 0 ? 0 : 2);
             double defaultCharge = (billingTotal * defaultPercent / 100);
             if (defaultCharge > billingTotal) defaultCharge = billingTotal;
-            chargeController.text =
-                defaultCharge.toStringAsFixed(defaultCharge % 1 == 0 ? 0 : 2);
+            chargeController.text = defaultCharge.toStringAsFixed(defaultCharge % 1 == 0 ? 0 : 2);
           }
         }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Booking not found")),
-        );
-        Navigator.pop(context);
       }
-    } catch (e) {
-      debugPrint("Error loading booking details: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
-      Navigator.pop(context);
+
+      // Fetch hall details for header
+      final hallRes = await http.get(Uri.parse('$baseUrl/halls/${widget.hallId}'));
+      if (hallRes.statusCode == 200) {
+        setState(() {
+          _hallDetails = jsonDecode(hallRes.body);
+        });
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -178,39 +141,11 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
 
   Future<void> _confirmCancel() async {
     if (reasonController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a reason")),
-      );
+      _showSnackBar("Please enter a reason");
       return;
     }
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: backgroundColor,
-        title: Text("Confirm Cancellation", style: TextStyle(color: primaryColor)),
-        content: Text(
-          "Are you sure you want to cancel this booking?",
-          style: TextStyle(color: primaryColor),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text("No", style: TextStyle(color: primaryColor)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text("Yes", style: TextStyle(color: backgroundColor)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
     setState(() => _loading = true);
-
     try {
       double cancelCharge = double.tryParse(chargeController.text) ?? 0;
       if (cancelCharge > billingTotal) cancelCharge = billingTotal;
@@ -230,281 +165,324 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
       );
 
       if (res.statusCode == 201 || res.statusCode == 200) {
-        _cancelData = jsonDecode(res.body);
-        setState(() => _canceled = true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Booking cancelled successfully!")),
-        );
-      } else {
-        final error = jsonDecode(res.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: ${error['message'] ?? res.body}")),
-        );
+        final data = jsonDecode(res.body);
+
+        setState(() {
+          _cancelData = data;  // store cancel data
+          _canceled = true;
+        });
+
+        _showSnackBar("Booking cancelled successfully!");
+
+        // Navigate to PDF page immediately after cancellation
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
     } finally {
       setState(() => _loading = false);
     }
   }
 
-  Future<void> _generatePdf() async {
-    if (booking == null) return;
 
-    final pdf = pw.Document();
-    final billNo = '${widget.hallId}${widget.bookingId}';
-    final dateTime = DateFormat('dd-MM-yyyy hh:mm a').format(DateTime.now());
+  Widget _sectionHeader(String title) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical:10,horizontal:8),
+      // padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: primaryColor,
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.12),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          title,
+          style: TextStyle(
+            color: tanColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 16, // increased font size
+          ),
+        ),
+      ),
+    );
+  }
 
-    pdf.addPage(
-      pw.MultiPage(
-        build: (context) => [
-          pw.Center(
-            child: pw.Text(
-              "Cancellation Receipt",
-              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+  Widget _plainRowWithTanValue(String label, {Widget? child, String? value}) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Label
+          Container(
+            width: screenWidth * 0.35, // 35% for label
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-          pw.SizedBox(height: 10),
-          pw.Text("Bill No: $billNo"),
-          pw.Text("Date: $dateTime"),
-          pw.Divider(),
-          pw.Text("Booking Details", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.Text("Name: ${booking!['name']}"),
-          pw.Text("Phone: ${booking!['phone']}"),
-          pw.Text("Function Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(booking!['function_date']))}"),
-          pw.Text("Event Type: ${booking!['event_type'] ?? 'N/A'}"),
-          pw.Text("Rent: ${booking!['rent']}"),
-          pw.Text("Total Amount Paid: ${billingTotal.toStringAsFixed(2)}"),
-          pw.Divider(),
-          pw.Text("Cancellation Details", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.Text("Reason: ${_cancelData?['reason'] ?? reasonController.text}"),
-          pw.Text("Cancel Charge: ${_cancelData?['cancel_charge'] ?? chargeController.text}"),
+          const SizedBox(width: 10),
+          // Value container
+          Container(
+            width: screenWidth * 0.42, // 42% for value/child
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: tanColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            alignment: Alignment.center, // Center content horizontally
+            child: child ??
+                Text(
+                  value ?? "—",
+                  style: TextStyle(color: primaryColor),
+                  textAlign: TextAlign.center, // Center text
+                ),
+          ),
         ],
       ),
     );
-
-    await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(),
-    );
   }
 
-  @override
-  void dispose() {
-    reasonController.dispose();
-    percentController.dispose();
-    chargeController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final readOnly = _canceled;
 
-    return Scaffold(
+    return WillPopScope(
+        onWillPop: () async {
+          Navigator.pop(context, true); // send refresh signal
+          return false; // prevent default pop (we already did it)
+        },child:Scaffold(
       backgroundColor: scaffoldBackground,
       appBar: AppBar(
         title: const Text("Cancel Booking"),
         centerTitle: true,
         backgroundColor: primaryColor,
-        iconTheme: IconThemeData(color: backgroundColor),
-        titleTextStyle: TextStyle(
-          color: backgroundColor,
-          fontSize: 23,
-          fontWeight: FontWeight.bold,
-        ),
+        iconTheme: IconThemeData(color: tanColor),
+        titleTextStyle: TextStyle(color: tanColor, fontSize: 23, fontWeight: FontWeight.bold),
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: primaryColor))
           : booking == null
           ? const Center(child: Text("No booking details found"))
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(18.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_canceled)
-              ElevatedButton(
-                onPressed: _generatePdf,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: backgroundColor,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text(
-                  "Generate & Print PDF",
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            if (_canceled) const SizedBox(height: 16),
-            Card(
-              color: backgroundColor,
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+            // Hall header
+            if (_hallDetails != null)
+              HallHeader(hallDetails: _hallDetails!, oliveGreen: primaryColor, tan: tanColor),
+            const SizedBox(height: 10),
+
+            // Header
+
+            _sectionContainer(_canceled ? "CANCELLATION DETAILS" : "BOOKING DETAILS",
+
+            [
+            // Booking info
+            _plainRowWithTanValue("NAME", value:booking!['name']),
+            _plainRowWithTanValue("PHONE", value:booking!['phone']),
+            _plainRowWithTanValue(
+              "FUNCTION DATE",value:
+              DateFormat('dd-MM-yyyy').format(DateTime.parse(booking!['function_date']).toLocal()),
+            ),
+            _plainRowWithTanValue("EVENT TYPE", value:booking!['event_type'] ?? "N/A"),
+              _plainRowWithTanValue(
+                "ALLOTED FROM",
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Center(
-                      child: Text(
-                        _canceled ? "Cancellation Details" : "Booking Details",
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(color: primaryColor),
-                      ),
+                    Text(
+                      booking!['alloted_datetime_from'] != null
+                          ? DateFormat('dd-MM-yyyy').format(DateTime.parse(booking!['alloted_datetime_from']))
+                          : "N/A",
+                      style: TextStyle(color: primaryColor),
                     ),
-                    const SizedBox(height: 10),
-                    InfoRow(label: "Name", value: booking!['name'], primaryColor: primaryColor),
-                    InfoRow(label: "Phone", value: booking!['phone'], primaryColor: primaryColor),
-                    InfoRow(label: "Function Date", value: DateFormat('yyyy-MM-dd').format(DateTime.parse(booking!['function_date'])), primaryColor: primaryColor),
-                    InfoRow(label: "Event Type", value: booking!['event_type'] ?? "N/A", primaryColor: primaryColor),
-                    InfoRow(label: "Alloted From", value: booking!['alloted_datetime_from'] != null
-                        ? DateFormat('yyyy-MM-dd hh:mm a').format(DateTime.parse(booking!['alloted_datetime_from']).toLocal())
-                        : "N/A", primaryColor: primaryColor),
-                    InfoRow(label: "Alloted To", value: booking!['alloted_datetime_to'] != null
-                        ? DateFormat('yyyy-MM-dd hh:mm a').format(DateTime.parse(booking!['alloted_datetime_to']).toLocal())
-                        : "N/A", primaryColor: primaryColor),
-                    InfoRow(label: "Rent", value: booking!['rent'].toString(), primaryColor: primaryColor),
-                    InfoRow(
-                      label: _canceled ? "Cancel Charge" : "Total Amount Paid",
-                      value: _canceled ? (_cancelData?['cancel_charge'] ?? chargeController.text) : billingTotal.toStringAsFixed(2),
-                      primaryColor: primaryColor,
+                    Text(
+                      booking!['alloted_datetime_from'] != null
+                          ? DateFormat('hh:mm a').format(DateTime.parse(booking!['alloted_datetime_from']))
+                          : "",
+                      style: TextStyle(color: primaryColor),
                     ),
-                    if (_canceled)
-                      InfoRow(
-                        label: "Reason",
-                        value: _cancelData?['reason'] ?? reasonController.text,
-                        primaryColor: primaryColor,
-                      ),
-                    if (!_canceled) ...[
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: reasonController,
-                        maxLines: 3,
-                        readOnly: readOnly,
-                        decoration: InputDecoration(
-                          labelText: "Cancellation Reason",
-                          labelStyle: TextStyle(color: primaryColor),
-                          enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: primaryColor)
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: primaryColor)
-                          ),
-                        ),
-                        style: TextStyle(color: primaryColor),
-                      ),
-                      const SizedBox(height: 15),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: percentController,
-                              readOnly: readOnly,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: InputDecoration(
-                                labelText: "Cancel % (default)",
-                                labelStyle: TextStyle(color: primaryColor),
-                                enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: primaryColor)
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: primaryColor)
-                                ),
-                              ),
-                              style: TextStyle(color: primaryColor),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: chargeController,
-                              readOnly: readOnly,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: InputDecoration(
-                                labelText: "Cancel Charge",
-                                labelStyle: TextStyle(color: primaryColor),
-                                enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: primaryColor)
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: primaryColor)
-                                ),
-                              ),
-                              style: TextStyle(color: primaryColor),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 25),
-                      ElevatedButton(
-                        onPressed: _confirmCancel,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: backgroundColor,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text(
-                          "Cancel Booking",
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
+
+              _plainRowWithTanValue(
+                "ALLOTED TO",
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+
+                  children: [
+                    Text(
+                      booking!['alloted_datetime_to'] != null
+                          ? DateFormat('dd-MM-yyyy').format(DateTime.parse(booking!['alloted_datetime_to']))
+                          : "N/A",
+                      style: TextStyle(color: primaryColor),
+                    ),
+                    Text(
+                      booking!['alloted_datetime_to'] != null
+                          ? DateFormat('hh:mm a').format(DateTime.parse(booking!['alloted_datetime_to']))
+                          : "",
+                      style: TextStyle(color: primaryColor),
+                    ),
+                  ],
+                ),
+              ),
+
+              _plainRowWithTanValue("RENT", value:booking!['rent'].toString()),
+            _plainRowWithTanValue(
+              _canceled ? "CANCEL CHARGE" : "TOTAL AMOUNT PAID",
+              value:_canceled ? (_cancelData?['cancel_charge'] ?? chargeController.text) : billingTotal.toStringAsFixed(2),
             ),
-          ],
+            if (_canceled)
+              _plainRowWithTanValue("REASON", value:_cancelData?['reason'] ?? reasonController.text),
+],
         ),
+
+            if (!_canceled) ...[
+              const SizedBox(height: 25),
+
+              _sectionContainer("CANCELLATION DETAILS",
+              [
+              _plainRowWithTanValue(
+                "CANCELLATION REASON",
+                child: TextField(
+                  controller: reasonController,
+                  maxLines: 3,
+                  readOnly: readOnly,
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    hintText: "Enter cancellation reason",
+                    hintStyle: TextStyle(color: primaryColor.withOpacity(0.7)),
+                  ),
+                  style: TextStyle(color: primaryColor),
+                ),
+              ),
+
+// Cancel %
+              _plainRowWithTanValue(
+                "CANCEL %",
+                child: TextField(
+                  controller: percentController,
+                  readOnly: readOnly,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(border: InputBorder.none),
+                  style: TextStyle(color: primaryColor),
+                ),
+              ),
+
+// Cancel Charge
+              _plainRowWithTanValue(
+                "CANCEL CHARGE",
+                child: TextField(
+                  controller: chargeController,
+                  readOnly: readOnly,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                      border: InputBorder.none,
+                  ),
+                  style: TextStyle(color: primaryColor),
+
+                ),
+              ),
+              ],),
+
+
+              const SizedBox(height: 25),
+              const SizedBox(height: 24),
+
+              // Cancel button (disabled after cancellation)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _cancelData != null ? null : _confirmCancel,
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text("Cancel Booking"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: tanColor,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 38),
+
+
+    ],
+            if (_canceled && booking != null && _hallDetails != null)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CancelPdfPage(
+                                bookingData: booking!,
+                                hallDetails: _hallDetails!,
+                                cancelData: _cancelData ?? {},
+                                oliveGreen: primaryColor,
+                                tan: tanColor,
+                                beigeBackground: scaffoldBackground, // Add this
+                              ),
+                            ),
+                    );
+                  },
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text("Generate & View PDF"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: tanColor,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 24,)
+
+        ],),
       ),
+    ),
     );
   }
-}
-
-class InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color primaryColor;
-
-  const InfoRow({super.key, required this.label, required this.value, required this.primaryColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _sectionContainer(String title, List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: scaffoldBackground, // same as page background
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: primaryColor, // only olive green border
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 130, // Fixed width for labels for alignment
-            child: Text(
-              "$label:",
-              style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(color: primaryColor),
-            ),
-          ),
+          _sectionHeader(title), // existing header function
+          const SizedBox(height: 12),
+          ...children,
         ],
       ),
     );
   }
-}
 
+
+}

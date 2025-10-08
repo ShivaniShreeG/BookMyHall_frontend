@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../../public/config.dart';
+import '../../utils/themed_datetime_picker.dart';
+import '../../utils/hall_header.dart';
+
 
 class ChangeBookingDatePage extends StatefulWidget {
   final int hallId;
@@ -21,6 +24,7 @@ class ChangeBookingDatePage extends StatefulWidget {
 class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
   bool _loading = true;
   Map<String, dynamic>? booking;
+  Map<String, dynamic>? _hallDetails;
 
   DateTime? functionDate;
   DateTime? allotedFrom;
@@ -31,13 +35,26 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
   List<DateTime> otherFunctionDates = [];
 
   final Color primaryColor = const Color(0xFF5B6547);
-  final Color backgroundColor = const Color(0xFFD8C9A9);
-  final Color cardColor = const Color(0xFFD8C7A5);
+  final Color backgroundColor = const Color(0xFFECE5D8);
+  final Color cardColor = const Color(0xFFD8C9A9);
 
   @override
   void initState() {
     super.initState();
     _loadBooking();
+    _loadHallDetails();
+  }
+  Future<void> _loadHallDetails() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/halls/${widget.hallId}'));
+      if (res.statusCode == 200) {
+        setState(() {
+          _hallDetails = jsonDecode(res.body);
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading hall details: $e");
+    }
   }
 
   Future<void> _loadBooking() async {
@@ -49,10 +66,10 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
       if (res.statusCode == 200) {
         booking = jsonDecode(res.body);
 
-        functionDate = DateTime.parse(booking!['function_date']).toLocal();
+        functionDate = DateTime.parse(booking!['function_date']);
         allotedFrom =
-            DateTime.parse(booking!['alloted_datetime_from']).toLocal();
-        allotedTo = DateTime.parse(booking!['alloted_datetime_to']).toLocal();
+            DateTime.parse(booking!['alloted_datetime_from']);
+        allotedTo = DateTime.parse(booking!['alloted_datetime_to']);
 
         await _loadOtherBookings();
 
@@ -282,19 +299,111 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
       ),
     );
   }
+  Widget _plainRowWithTanValue(String label, {Widget? child, String? value}) {
+    final screenWidth = MediaQuery.of(context).size.width;
 
-  Widget _sectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Label
+          Container(
+            width: screenWidth * 0.35, // 35% for label
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Value container
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: child ?? Text(
+                value ?? "—",
+                style: TextStyle(color: primaryColor),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _sectionHeader(String title) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: primaryColor,
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.12),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Center(
         child: Text(
           title,
           style: TextStyle(
-              fontWeight: FontWeight.bold, fontSize: 18, color: primaryColor),
+            color: cardColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
       ),
     );
   }
+  Widget _sectionContainer(String title, List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: backgroundColor, // same as page background
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: primaryColor,
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionHeader(title),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  // Widget _sectionHeader(String title) {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(vertical: 16.0),
+  //     child: Center(
+  //       child: Text(
+  //         title,
+  //         style: TextStyle(
+  //             fontWeight: FontWeight.bold, fontSize: 18, color: primaryColor),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -314,120 +423,193 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            /// 1️⃣ Change Date Section
-            _sectionHeader("Change Date/Time"),
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              color: cardColor,
-              elevation: 1,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextFormField(
-                      readOnly: true,
-                      onTap: _pickFunctionDate,
-                      decoration: InputDecoration(
-                        labelText: "Function Date",
-                        labelStyle: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.w600),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        suffixIcon: const Icon(Icons.calendar_today),
-                      ),
-                      controller: TextEditingController(
-                        text: functionDate != null
-                            ? DateFormat('yyyy-MM-dd').format(functionDate!)
-                            : "",
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      readOnly: true,
-                      onTap: _pickAllotedFrom,
-                      decoration: InputDecoration(
-                        labelText: "Alloted From",
-                        labelStyle: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.w600),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        suffixIcon: const Icon(Icons.access_time),
-                      ),
-                      controller: TextEditingController(
-                        text: allotedFrom != null
-                            ? DateFormat('yyyy-MM-dd hh:mm a')
-                            .format(allotedFrom!)
-                            : "",
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      readOnly: true,
-                      onTap: _pickAllotedTo,
-                      decoration: InputDecoration(
-                        labelText: "Alloted To",
-                        labelStyle: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.w600),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        suffixIcon: const Icon(Icons.access_time),
-                      ),
-                      controller: TextEditingController(
-                        text: allotedTo != null
-                            ? DateFormat('yyyy-MM-dd hh:mm a')
-                            .format(allotedTo!)
-                            : "",
-                      ),
-                    ),
-                  ],
+            if (_hallDetails != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: HallHeader(
+                  hallDetails: _hallDetails!,
+                  oliveGreen: primaryColor,
+                  tan: cardColor,
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
 
-            /// Save button
-            ElevatedButton(
-              onPressed: _submitChange,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                padding: const EdgeInsets.symmetric(
-                    vertical: 15, horizontal: 15),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text(
-                "Save Changes",
-                style: TextStyle(fontSize: 15, color: Color(0xFFD8C7A5)),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            /// 2️⃣ Booking Details Section
-            _sectionHeader("Booking Details"),
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              color: cardColor,
-              elevation: 1,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _infoRow("Booking ID", booking!['booking_id'].toString()),
-                    _infoRow("Name", booking!['name']),
-                    _infoRow("Phone", booking!['phone']),
-                    if (booking!['email'] != null)
-                      _infoRow("Email", booking!['email']),
-                    if (booking!['address'] != null)
-                      _infoRow("Address", booking!['address']),
-                    _infoRow("Event Type", booking!['event_type'] ?? "N/A"),
-                  ],
+            _sectionContainer(
+              "CHANGE DATE/TIME",
+              [
+                // Function Date
+                _plainRowWithTanValue(
+                  "FUNCTION DATE",
+                  child: InkWell(
+                    onTap: _pickFunctionDate,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        functionDate != null
+                            ? DateFormat('dd-MM-yyyy').format(functionDate!)
+                            : "Select Date",
+                        style: TextStyle(
+                            color: primaryColor, fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+
+                const SizedBox(height: 16),
+
+                // Alloted From
+                _plainRowWithTanValue(
+                  "ALLOTED FROM",
+                  child: InkWell(
+                    onTap: _pickAllotedFrom,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          allotedFrom != null
+                              ? DateFormat('dd-MM-yyyy').format(allotedFrom!)
+                              : "Select Date",
+                          style: TextStyle(
+                              color: primaryColor, fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          allotedFrom != null
+                              ? DateFormat('hh:mm a').format(allotedFrom!)
+                              : "Select Time",
+                          style: TextStyle(color: primaryColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Alloted To
+                _plainRowWithTanValue(
+                  "ALLOTED TO",
+                  child: InkWell(
+                    onTap: _pickAllotedTo,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          allotedTo != null
+                              ? DateFormat('dd-MM-yyyy').format(allotedTo!)
+                              : "Select Date",
+                          style: TextStyle(
+                              color: primaryColor, fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          allotedTo != null
+                              ? DateFormat('hh:mm a').format(allotedTo!)
+                              : "Select Time",
+                          style: TextStyle(color: primaryColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Save button
+                SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.5, // 50% of screen width
+                  child: ElevatedButton(
+                    onPressed: _submitChange,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      "Save Changes",
+                      style: TextStyle(fontSize: 15, color: Color(0xFFD8C7A5)),
+                    ),
+                  ),
+                ),
+
+
+              ],
+            ),
+
+
+            const SizedBox(height: 20),
+            _sectionContainer(
+              "BOOKING DETAILS",
+              [
+                _plainRowWithTanValue(
+                  "BOOKING ID",
+                  value: booking!['booking_id'].toString(),
+                ),
+                _plainRowWithTanValue(
+                  "NAME",
+                  value: booking!['name'],
+                ),
+                _plainRowWithTanValue(
+                  "PHONE",
+                  value: booking!['phone'],
+                ),
+                if (booking!['email'] != null)
+                  _plainRowWithTanValue(
+                    "EMAIL",
+                    value: booking!['email'],
+                  ),
+                if (booking!['address'] != null)
+                  _plainRowWithTanValue(
+                    "ADDRESS",
+                    value: booking!['address'],
+                  ),
+                _plainRowWithTanValue(
+                  "EVENT",
+                  value: booking!['event_type'] ?? "N/A",
+                ),
+                _plainRowWithTanValue(
+                  "EVENT DATE",
+                  value: functionDate != null
+                      ? DateFormat('yyyy-MM-dd').format(functionDate!)
+                      : "—",
+                ),
+                _plainRowWithTanValue(
+                  "Alloted From",
+                  child: allotedFrom != null
+                      ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        DateFormat('dd-MM-yyyy').format(allotedFrom!),
+                        style: TextStyle(color: primaryColor),
+                      ),
+                      Text(
+                        DateFormat('hh:mm a').format(allotedFrom!),
+                        style: TextStyle(color: primaryColor),
+                      ),
+                    ],
+                  )
+                      : Text("—", style: TextStyle(color: primaryColor)),
+                ),
+                _plainRowWithTanValue(
+                  "Alloted To",
+                  child: allotedTo != null
+                      ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        DateFormat('dd-MM-yyyy').format(allotedTo!),
+                        style: TextStyle(color: primaryColor),
+                      ),
+                      Text(
+                        DateFormat('hh:mm a').format(allotedTo!),
+                        style: TextStyle(color: primaryColor),
+                      ),
+                    ],
+                  )
+                      : Text("—", style: TextStyle(color: primaryColor)),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
           ],
@@ -437,91 +619,3 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
   }
 }
 
-/// Reusable Themed DateTime Picker
-class ThemedDateTimePicker {
-  static Future<DateTime?> pick({
-    required BuildContext context,
-    required DateTime initialDate,
-    required Color primaryColor,
-    required Color backgroundColor,
-  }) async {
-    // Pick Date
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.light(
-            primary: primaryColor,
-            onPrimary: backgroundColor,
-            surface: backgroundColor,
-            onSurface: primaryColor,
-          ),
-          dialogBackgroundColor: backgroundColor,
-        ),
-        child: child!,
-      ),
-    );
-
-    if (pickedDate == null) return null;
-
-    // Pick Time
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initialDate),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.light(
-            primary: primaryColor,
-            onPrimary: backgroundColor,
-            surface: backgroundColor,
-            onSurface: primaryColor,
-          ),
-          timePickerTheme: TimePickerThemeData(
-            backgroundColor: backgroundColor,
-            hourMinuteTextColor: MaterialStateColor.resolveWith(
-                    (states) => states.contains(MaterialState.selected)
-                    ? backgroundColor
-                    : primaryColor),
-            hourMinuteShape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: primaryColor),
-            ),
-            hourMinuteColor: MaterialStateColor.resolveWith(
-                    (states) => states.contains(MaterialState.selected)
-                    ? primaryColor
-                    : Colors.transparent),
-            dayPeriodTextColor: MaterialStateColor.resolveWith(
-                    (states) => states.contains(MaterialState.selected)
-                    ? backgroundColor
-                    : primaryColor),
-            dayPeriodShape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: primaryColor),
-            ),
-            dayPeriodColor: MaterialStateColor.resolveWith(
-                    (states) => states.contains(MaterialState.selected)
-                    ? primaryColor
-                    : Colors.transparent),
-            dialHandColor: primaryColor,
-            dialBackgroundColor: backgroundColor,
-            entryModeIconColor: primaryColor,
-          ),
-        ),
-        child: child!,
-      ),
-    );
-
-    if (pickedTime == null) return null;
-
-    return DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-  }
-}

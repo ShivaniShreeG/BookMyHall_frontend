@@ -195,7 +195,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => CalendarPage(mode: CalendarMode.update),
+              builder: (context) => CalendarPage(mode: CalendarMode.bill),
             ),
           );
         }},
