@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../public/config.dart';
 import '../../utils/themed_datetime_picker.dart';
 import '../../utils/hall_header.dart';
+import 'pdf/change_date_pdf.dart';
 
 
 class ChangeBookingDatePage extends StatefulWidget {
@@ -29,6 +30,10 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
   DateTime? functionDate;
   DateTime? allotedFrom;
   DateTime? allotedTo;
+
+  DateTime? originalFunctionDate;
+  DateTime? originalAllotedFrom;
+  DateTime? originalAllotedTo;
 
   List<Map<String, DateTime>> otherBookedRanges = [];
   List<DateTime> fullyBookedDates = [];
@@ -70,6 +75,10 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
         allotedFrom =
             DateTime.parse(booking!['alloted_datetime_from']);
         allotedTo = DateTime.parse(booking!['alloted_datetime_to']);
+
+        originalFunctionDate = functionDate;
+        originalAllotedFrom = allotedFrom;
+        originalAllotedTo = allotedTo;
 
         await _loadOtherBookings();
 
@@ -219,6 +228,9 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
     return false;
   }
 
+  bool _saved = false; // add at state level
+  Map<String, dynamic>? _updatedBooking;
+
   Future<void> _submitChange() async {
     if (functionDate == null || allotedFrom == null || allotedTo == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -226,32 +238,25 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
       );
       return;
     }
-
     if (!allotedFrom!.isBefore(allotedTo!)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Alloted From must be before Alloted To")),
       );
       return;
     }
-
-    if (functionDate!.isBefore(allotedFrom!) ||
-        functionDate!.isAfter(allotedTo!)) {
+    if (functionDate!.isBefore(allotedFrom!) || functionDate!.isAfter(allotedTo!)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-            Text("Function date must be on or between allotted from–to")),
+        const SnackBar(content: Text("Function date must be on or between allotted from–to")),
       );
       return;
     }
-
     if (_checkConflict(allotedFrom!, allotedTo!)) return;
 
     setState(() => _loading = true);
 
     try {
       final res = await http.patch(
-        Uri.parse(
-            '$baseUrl/bookings/${widget.hallId}/${widget.bookingId}/time'),
+        Uri.parse('$baseUrl/bookings/${widget.hallId}/${widget.bookingId}/time'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'function_date': DateFormat('yyyy-MM-dd').format(functionDate!),
@@ -261,11 +266,12 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
       );
 
       if (res.statusCode == 200) {
+        _updatedBooking = jsonDecode(res.body); // store updated info
+        setState(() => _saved = true); // show PDF button
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Booking date/time updated successfully")),
+          const SnackBar(content: Text("Booking date/time updated successfully")),
         );
-        Navigator.pop(context, true);
       } else {
         final error = jsonDecode(res.body);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -273,12 +279,14 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
     } finally {
       setState(() => _loading = false);
     }
   }
+
 
   Widget _infoRow(String label, String value) {
     return Padding(
@@ -340,6 +348,7 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
       ),
     );
   }
+
   Widget _sectionHeader(String title) {
     return Container(
       width: double.infinity,
@@ -368,6 +377,7 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
       ),
     );
   }
+
   Widget _sectionContainer(String title, List<Widget> children) {
     return Container(
       width: double.infinity,
@@ -407,7 +417,11 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return WillPopScope(
+        onWillPop: () async {
+          Navigator.pop(context, true); // send refresh signal
+          return false; // prevent default pop (we already did it)
+        },child:Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text("Change Booking Date/Time",
@@ -440,7 +454,7 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
                 _plainRowWithTanValue(
                   "FUNCTION DATE",
                   child: InkWell(
-                    onTap: _pickFunctionDate,
+                    onTap: _saved ? null : _pickFunctionDate, // disable after save
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Text(
@@ -448,20 +462,20 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
                             ? DateFormat('dd-MM-yyyy').format(functionDate!)
                             : "Select Date",
                         style: TextStyle(
-                            color: primaryColor, fontWeight: FontWeight.w600),
+                          color: primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 16),
-
-                // Alloted From
+// Alloted From
                 _plainRowWithTanValue(
                   "ALLOTED FROM",
                   child: InkWell(
-                    onTap: _pickAllotedFrom,
+                    onTap: _saved ? null : _pickAllotedFrom, // disable after save
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -483,13 +497,11 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
-
-                // Alloted To
+// Alloted To
                 _plainRowWithTanValue(
                   "ALLOTED TO",
                   child: InkWell(
-                    onTap: _pickAllotedTo,
+                    onTap: _saved ? null : _pickAllotedTo, // disable after save
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -513,26 +525,24 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
 
                 const SizedBox(height: 20),
 
-                // Save button
-                SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.5, // 50% of screen width
-                  child: ElevatedButton(
-                    onPressed: _submitChange,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                if (!_saved)
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.5, // 50% of screen width
+                    child: ElevatedButton(
+                      onPressed: _submitChange,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        "Save Changes",
+                        style: TextStyle(fontSize: 15, color: Color(0xFFD8C7A5)),
                       ),
                     ),
-                    child: const Text(
-                      "Save Changes",
-                      style: TextStyle(fontSize: 15, color: Color(0xFFD8C7A5)),
-                    ),
                   ),
-                ),
-
-
               ],
             ),
 
@@ -570,21 +580,21 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
                 _plainRowWithTanValue(
                   "EVENT DATE",
                   value: functionDate != null
-                      ? DateFormat('yyyy-MM-dd').format(functionDate!)
+                      ? DateFormat('yyyy-MM-dd').format(originalFunctionDate!)
                       : "—",
                 ),
                 _plainRowWithTanValue(
                   "Alloted From",
-                  child: allotedFrom != null
+                  child: originalAllotedFrom!= null
                       ? Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        DateFormat('dd-MM-yyyy').format(allotedFrom!),
+                        DateFormat('dd-MM-yyyy').format(originalAllotedFrom!),
                         style: TextStyle(color: primaryColor),
                       ),
                       Text(
-                        DateFormat('hh:mm a').format(allotedFrom!),
+                        DateFormat('hh:mm a').format(originalAllotedFrom!),
                         style: TextStyle(color: primaryColor),
                       ),
                     ],
@@ -593,16 +603,16 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
                 ),
                 _plainRowWithTanValue(
                   "Alloted To",
-                  child: allotedTo != null
+                  child: originalAllotedTo!= null
                       ? Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        DateFormat('dd-MM-yyyy').format(allotedTo!),
+                        DateFormat('dd-MM-yyyy').format(originalAllotedTo!),
                         style: TextStyle(color: primaryColor),
                       ),
                       Text(
-                        DateFormat('hh:mm a').format(allotedTo!),
+                        DateFormat('hh:mm a').format(originalAllotedTo!),
                         style: TextStyle(color: primaryColor),
                       ),
                     ],
@@ -612,9 +622,43 @@ class _ChangeBookingDatePageState extends State<ChangeBookingDatePage> {
               ],
             ),
             const SizedBox(height: 20),
+
+            if (_saved && booking != null && _hallDetails != null)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChangeDatePdfPage(
+                          bookingData: booking!,
+                          hallDetails: _hallDetails!,
+                          updatedFunctionDate: functionDate!,
+                          updatedFrom: allotedFrom!,
+                          updatedTo: allotedTo!,
+                          oliveGreen: primaryColor,
+                          tan: cardColor,
+                          beigeBackground: backgroundColor,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text("Generate & View PDF"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: cardColor,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 60)
           ],
         ),
       ),
+    ),
     );
   }
 }

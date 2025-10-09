@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../../public/config.dart';
 import '../../utils/hall_header.dart';
+import 'pdf/billing_pdf.dart';
 
 class UpdateBookingPage extends StatefulWidget {
   final int hallId;
@@ -23,6 +24,8 @@ class UpdateBookingPage extends StatefulWidget {
 
 class _UpdateBookingPageState extends State<UpdateBookingPage> {
   bool _loading = true;
+  bool _showPdfButton = false; // controls whether PDF button appears
+  bool _isReadOnly = false; // new flag
   Map<String, dynamic>? booking;
   Map<String, dynamic>? _hallDetails;
   List<Map<String, dynamic>> existingCharges = [];
@@ -32,9 +35,8 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
   // Theme Colors
   final Color primaryColor = const Color(0xFF5B6547); // Olive green
   final Color backgroundColor = const Color(0xFFECE5D8); // Soft beige
-  final Color cardColor = const Color(0xFFD8C7A5); // Muted tan
-  final Color buttonTextColor = const Color(0xFFD8C7A5); // Muted tan
-  final Color textFieldBorderColor = const Color(0xFF5B6547); // Olive for textfields
+  final Color secondaryColor = const Color(0xFFD8C7A5); // Muted tan
+  // final Color textFieldBorderColor = const Color(0xFF5B6547); // Olive for textfields
 
   @override
   void initState() {
@@ -153,9 +155,16 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
       );
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Charges saved successfully!")));
-        Navigator.pop(context, true);
-      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Charges saved successfully!"))
+        );
+
+        setState(() {
+          _showPdfButton = true; // show the generate PDF button
+          _isReadOnly = true;
+        });
+      }
+      else {
         final error = jsonDecode(res.body);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: ${error['message'] ?? res.body}")));
       }
@@ -177,6 +186,31 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
   //     ),
   //   );
   // }
+  void _openPdf() {
+    if (booking == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UpdateBookingPdfPage(
+          bookingData: booking!,
+          hallDetails: _hallDetails!,
+          existingCharges: existingCharges,
+          newCharges: chargesControllers.map((c) {
+            return {
+              'reason': c['selectedDefault']?['reason'] == 'EB (per unit)'
+                  ? 'EB (per unit)'
+                  : c['reason'].text.trim(),
+              'amount': double.tryParse(c['amount'].text) ?? 0,
+            };
+          }).where((c) => (c['reason'] as String).isNotEmpty && (c['amount'] as double) > 0).toList(),
+          primaryColor: primaryColor,
+          secondaryColor: secondaryColor,
+          backgroundColor: backgroundColor,
+        ),
+      ),
+    );
+  }
 
   Widget _buildChargeField(int index) {
     final controllers = chargesControllers[index];
@@ -187,16 +221,42 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
       controllers['startUnit'] ??= TextEditingController(text: '0');
       controllers['endUnit'] ??= TextEditingController(text: '0');
     }
-    int units =0;
+
+    int units = 0;
     double total = 0;
-    if (isEBPerUnit) {
-      double perUnit = double.tryParse(controllers['amount'].text) ?? 0;
-      int start = int.tryParse(controllers['startUnit']?.text ?? '0') ?? 0;
-      int end = int.tryParse(controllers['endUnit']?.text ?? '0') ?? 0;
-      int units = (end - start).clamp(0, 99999);
-      total = perUnit * units;
+    double perUnit = double.tryParse(controllers['amount'].text) ?? 0;
+    int start = int.tryParse(controllers['startUnit']?.text ?? '0') ?? 0;
+    int end = int.tryParse(controllers['endUnit']?.text ?? '0') ?? 0;
+    units = (end - start).clamp(0, 99999);
+    total = perUnit * units;
+
+    if (_isReadOnly) {
+      // ✅ READ-ONLY CARD
+      return Card(
+        margin: const EdgeInsets.only(bottom: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: primaryColor, width: 1),
+        ),
+        color: backgroundColor,
+        elevation: 1,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              _plainRowWithTanValue("REASON", value: controllers['reason'].text),
+              _plainRowWithTanValue(isEBPerUnit ? "AMOUNT (per Unit)" : "AMOUNT", value: "₹${perUnit.toStringAsFixed(2)}"),
+              if (isEBPerUnit) _plainRowWithTanValue("START UNIT", value: start.toString()),
+              if (isEBPerUnit) _plainRowWithTanValue("END UNIT", value: end.toString()),
+              if (isEBPerUnit) _plainRowWithTanValue("CONSUMED UNITS", value: units.toString()),
+              if (isEBPerUnit) _plainRowWithTanValue("TOTAL", value: "₹${total.toStringAsFixed(2)}"),
+            ],
+          ),
+        ),
+      );
     }
 
+    // 🔧 EDITABLE CARD
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
@@ -226,6 +286,7 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
                     value: "Other",
                     child: Text("Other", style: TextStyle(color: primaryColor)),
                   ),
+
                 ],
                 onChanged: (selected) {
                   setState(() {
@@ -251,9 +312,15 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
                     }
                   });
                 },
+                hint: Center( // Center the hint
+                  child: Text(
+                    "Select any rea...",
+                    style: TextStyle(color: primaryColor.withOpacity(0.7),fontSize: 14),
+                  ),
+                ),
                 decoration: const InputDecoration(border: InputBorder.none),
                 style: TextStyle(color: primaryColor),
-                dropdownColor: cardColor,
+                dropdownColor: secondaryColor,
               ),
             ),
 
@@ -262,7 +329,13 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
                 "CUSTOM REASON",
                 child: TextField(
                   controller: controllers['reason'],
-                  decoration: const InputDecoration(border: InputBorder.none),
+                  decoration: InputDecoration(border: InputBorder.none,
+                    hint: Center( // Center the hint
+                      child: Text(
+                        "Enter the reason",
+                        style: TextStyle(color: primaryColor.withOpacity(0.7),fontSize: 14),
+                      ),
+                    ),),
                   style: TextStyle(color: primaryColor),
                 ),
               ),
@@ -272,7 +345,13 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
               child: TextField(
                 controller: controllers['amount'],
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(border: InputBorder.none),
+                decoration: InputDecoration(border: InputBorder.none,hint: Center( // Center the hint
+                  child: Text(
+                    "Enter the amount",
+                    style: TextStyle(color: primaryColor.withOpacity(0.7),fontSize: 14),
+                  ),
+                ),
+                ),
                 style: TextStyle(color: primaryColor),
                 onChanged: (_) => setState(() {}),
               ),
@@ -316,7 +395,6 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
                 value: units.toString(),
               ),
 
-
             if (isEBPerUnit)
               _plainRowWithTanValue(
                 "TOTAL",
@@ -342,7 +420,7 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
         content: Text(
           message,
           style: TextStyle(
-            color: cardColor,
+            color: secondaryColor,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -391,7 +469,7 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
             width: screenWidth * 0.42, // 42% for value/child
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: cardColor,
+              color: secondaryColor,
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center, // Center content horizontally
@@ -426,7 +504,7 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
         child: Text(
           title,
           style: TextStyle(
-            color: cardColor,
+            color: secondaryColor,
             fontWeight: FontWeight.bold,
             fontSize: 16,
           ),
@@ -471,14 +549,18 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return WillPopScope(
+        onWillPop: () async {
+          Navigator.pop(context, true); // send refresh signal
+          return false; // prevent default pop (we already did it)
+        },child:Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: Text("Billing", style: TextStyle(color: cardColor)),
+        title: Text("Billing", style: TextStyle(color: secondaryColor)),
         centerTitle: true,
         backgroundColor: primaryColor,
         elevation: 0,
-        iconTheme: IconThemeData(color: cardColor),
+        iconTheme: IconThemeData(color: secondaryColor),
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: primaryColor))
@@ -497,12 +579,13 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
                   child: HallHeader(
                     hallDetails: _hallDetails!,
                     oliveGreen: primaryColor,
-                    tan: cardColor,
+                    tan: secondaryColor,
                   ),
                 ),
               ...List.generate(chargesControllers.length, _buildChargeField),
               // _buildCharges(),
               const SizedBox(height: 16),
+              if (!_isReadOnly)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -524,11 +607,11 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
                             width: buttonWidth,
                             child: ElevatedButton.icon(
                               onPressed: _addChargeField,
-                              icon: Icon(Icons.add, color: cardColor, size: iconSize),
+                              icon: Icon(Icons.add, color: secondaryColor, size: iconSize),
                               label: Text(
                                 "Add Charge",
                                 style: TextStyle(
-                                  color: cardColor,
+                                  color: secondaryColor,
                                   fontSize: fontSize,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -547,12 +630,12 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
                             width: buttonWidth,
                             child: ElevatedButton.icon(
                               onPressed: _submitCharges,
-                              icon: Icon(Icons.check_circle, color: cardColor, size: iconSize),
+                              icon: Icon(Icons.check_circle, color: secondaryColor, size: iconSize),
                               label: Text(
                                 "Save Charges",
                                 style: TextStyle(
                                   fontSize: fontSize,
-                                  color: cardColor,
+                                  color: secondaryColor,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -643,14 +726,28 @@ class _UpdateBookingPageState extends State<UpdateBookingPage> {
                   _plainRowWithTanValue("BALANCE", value: booking!['balance'].toString()),
                 ],
               ),
-
+              if (_showPdfButton)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _openPdf,
+    icon: const Icon(Icons.picture_as_pdf),
+    label: const Text("Generate & View PDF"),
+    style: ElevatedButton.styleFrom(
+    backgroundColor: primaryColor,
+    foregroundColor: secondaryColor,
+    minimumSize: const Size.fromHeight(48),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+              const SizedBox(height: 50)
               // Existing Charges section
-
-              const SizedBox(height: 25)
             ],
           ),
         ),
       ),
+    ),
     );
   }
 }

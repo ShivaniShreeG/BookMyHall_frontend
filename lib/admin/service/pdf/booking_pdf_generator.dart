@@ -265,7 +265,7 @@ class BookingPdfPage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    pw.SizedBox(height: 4), // space after header
+                    pw.SizedBox(height: 6), // space after header
 
                     // Rows
                     ...[
@@ -278,16 +278,17 @@ class BookingPdfPage extends StatelessWidget {
                         width: double.infinity,
                         color: lightBlue,
                         padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                        margin: const pw.EdgeInsets.only(bottom: 4), // space between rows
+                        margin: const pw.EdgeInsets.only(bottom: 6), // space between rows
                         child: pw.Text(
                           label,
                           style: pw.TextStyle(
+                            font: isBalance ? tamilFontBold : tamilFont,
                             fontWeight: isBalance ? pw.FontWeight.bold : pw.FontWeight.normal,
-                            font: tamilFont,
                           ),
                         ),
                       );
                     }).toList(),
+
                   ],
                 ),
               ),
@@ -315,7 +316,7 @@ class BookingPdfPage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    pw.SizedBox(height: 4), // space after header
+                    pw.SizedBox(height: 6), // space after header
 
                     // Rows
                     ...[
@@ -328,13 +329,13 @@ class BookingPdfPage extends StatelessWidget {
                         width: double.infinity,
                         color: lightBlue,
                         padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                        margin: const pw.EdgeInsets.only(bottom: 4), // space between rows
+                        margin: const pw.EdgeInsets.only(bottom: 6), // space between rows
                         child: pw.Text(
                           amount,
                           textAlign: pw.TextAlign.right,
                           style: pw.TextStyle(
+                            font: isBalance ? tamilFontBold : tamilFont,
                             fontWeight: isBalance ? pw.FontWeight.bold : pw.FontWeight.normal,
-                            font: tamilFont,
                           ),
                         ),
                       );

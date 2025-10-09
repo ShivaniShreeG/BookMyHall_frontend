@@ -694,7 +694,7 @@ class _BookingPageState extends State<BookingPage> {
                       },
                       hint: Center( // Center the hint
                         child: Text(
-                          "Select",
+                          "Select a..",
                           style: TextStyle(color: oliveGreen.withOpacity(0.7)),
                         ),
                       ),

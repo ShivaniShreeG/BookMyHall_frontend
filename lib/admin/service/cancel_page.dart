@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:pdf/pdf.dart';
-import 'package:printing/printing.dart';
+// import 'package:pdf/widgets.dart' as pw;
+// import 'package:pdf/pdf.dart';
+// import 'package:printing/printing.dart';
 import 'pdf/cancel_pdf_generator.dart';
 import '../../utils/hall_header.dart';
 import '../../public/config.dart';
@@ -28,7 +28,7 @@ class CancelBookingPage extends StatefulWidget {
 class _CancelBookingPageState extends State<CancelBookingPage> {
   bool _loading = true;
   bool _canceled = false;
-  bool _showPdfButton = false; // Controls visibility of PDF button
+  // bool _showPdfButton = false; // Controls visibility of PDF button
   Map<String, dynamic>? booking;
   Map<String, dynamic>? _cancelData;
   Map<String, dynamic>? _hallDetails;
@@ -101,6 +101,7 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
       final res = await http.get(Uri.parse('$baseUrl/cancels/${widget.hallId}/${widget.bookingId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
+        print("📘 Booking & Billing Data:\n${jsonEncode(data)}\n");
         setState(() {
           booking = data;
           if (booking!['billings'] != null && (booking!['billings'] as List).isNotEmpty) {
@@ -342,12 +343,29 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
                 ),
               ),
 
-              _plainRowWithTanValue("RENT", value:booking!['rent'].toString()),
-            _plainRowWithTanValue(
-              _canceled ? "CANCEL CHARGE" : "TOTAL AMOUNT PAID",
-              value:_canceled ? (_cancelData?['cancel_charge'] ?? chargeController.text) : billingTotal.toStringAsFixed(2),
-            ),
-            if (_canceled)
+              _plainRowWithTanValue("RENT", value:"₹"+booking!['rent'].toString()),
+              // --- Show reason-wise billing details neatly inside booking details ---
+              if (booking!['billings'] != null && (booking!['billings'] as List).isNotEmpty)
+                ...[
+                  const SizedBox(height: 6),
+                  for (var bill in booking!['billings'])
+                    if (bill['reason'] != null && bill['reason'] is Map<String, dynamic>)
+                      ...(bill['reason'] as Map<String, dynamic>).entries.map((entry) {
+                        return _plainRowWithTanValue(
+                          entry.key.toString().toUpperCase(),
+                          value: "₹${entry.value}",
+                        );
+                      }),
+                ],
+
+              _plainRowWithTanValue(
+                _canceled ? "CANCEL CHARGE" : "TOTAL AMOUNT PAID",
+                value: "₹${_canceled
+                    ? (_cancelData?['cancel_charge'] ?? chargeController.text)
+                    : billingTotal.toStringAsFixed(2)}",
+              ),
+
+              if (_canceled)
               _plainRowWithTanValue("REASON", value:_cancelData?['reason'] ?? reasonController.text),
 ],
         ),
@@ -401,8 +419,7 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
               ],),
 
 
-              const SizedBox(height: 25),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // Cancel button (disabled after cancellation)
               SizedBox(
@@ -436,6 +453,7 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
                                 bookingData: booking!,
                                 hallDetails: _hallDetails!,
                                 cancelData: _cancelData ?? {},
+                                billingList: booking!['billings'] ?? [],
                                 oliveGreen: primaryColor,
                                 tan: tanColor,
                                 beigeBackground: scaffoldBackground, // Add this
@@ -453,8 +471,7 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
                   ),
                 ),
               ),
-            const SizedBox(height: 24,)
-
+            const SizedBox(height: 60)
         ],),
       ),
     ),
