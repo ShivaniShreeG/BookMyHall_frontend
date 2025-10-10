@@ -4,6 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../public/config.dart';
 import 'service/calendar_page.dart';
+import 'service/upcoming_events.dart';
+import 'service/booking_history.dart';
+import 'service/cancel_history.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -200,9 +203,33 @@ class _AdminDashboardState extends State<AdminDashboard> {
           );
         }},
       {"icon": Icons.search, "label": "Date Availability", "onTap": () {}},
-      {"icon": Icons.event_note, "label": "Upcoming Events", "onTap": () {}},
-      {"icon": Icons.history, "label": "Booking History", "onTap": () {}},
-      {"icon": Icons.cancel_presentation, "label": "Cancel History", "onTap": () {}},
+      {"icon": Icons.event_note, "label": "Upcoming Events",
+        "onTap": () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => UpcomingEventsPage(),
+            ),
+          );
+        }},
+      {"icon": Icons.history, "label": "Booking History",
+        "onTap": () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => BookingHistoryPage(),
+            ),
+          );
+        }},
+      {"icon": Icons.cancel_presentation, "label": "Cancel History",
+        "onTap": () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CancelHistoryPage(),
+            ),
+          );
+        }},
     ];
 
     return Card(

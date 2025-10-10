@@ -117,6 +117,9 @@ class ChangeDatePdfPage extends StatelessWidget {
         "assets/fonts/NotoSansTamil-Bold.ttf");
     final font = pw.Font.ttf(ttf);
     final fontBold = pw.Font.ttf(ttfBold);
+    debugPrint("Cancel Data: ${jsonEncode(updatedFunctionDate.toIso8601String())}");
+    debugPrint("Billing Data: ${jsonEncode(updatedFrom.toIso8601String())}");
+    debugPrint("Billing Data: ${jsonEncode(updatedTo.toIso8601String())}");
 
     // final updatedBooking = cancelData['updatedBooking'] ?? {};
     // final cancelRecord = cancelData['cancelRecord'] ?? {};
@@ -252,13 +255,56 @@ class ChangeDatePdfPage extends StatelessWidget {
             //   ],
 
           ], lightBlue, font),
+          _sectionHeader('PREVIOUSLY SCHEDULED DATE & TIME', darkBlue, fontBold),
+          _infoTable([
+            if ((bookingData['function_date'] ?? '')
+                .toString()
+                .isNotEmpty)
+              [
+                'FUNCTION DATE',
+                DateFormat('dd-MM-yyyy').format(
+                    DateTime.parse(bookingData['function_date']))
+              ],
+            if ((bookingData['alloted_datetime_from'] ?? '')
+                .toString()
+                .isNotEmpty &&
+                (bookingData['alloted_datetime_to'] ?? '')
+                    .toString()
+                    .isNotEmpty)
+              [
+                'ALLOTED TIME',
+                DateFormat('dd-MM-yyyy hh:mm a').format(
+                    DateTime
+                        .parse(bookingData['alloted_datetime_from'])),
+                DateFormat('dd-MM-yyyy hh:mm a').format(
+                    DateTime
+                        .parse(bookingData['alloted_datetime_to'])),
+              ],
+          ], lightBlue, font),
           pw.SizedBox(height: 10),
-
+          _sectionHeader('NEWLY SCHEDULED DATE & TIME', darkBlue, fontBold),
+          _infoTable(
+            [
+              // Function Date
+              [
+                'FUNCTION DATE',
+                DateFormat('dd-MM-yyyy').format(updatedFunctionDate),
+              ],
+              // Alloted Time
+              [
+                'ALLOTED TIME',
+                DateFormat('dd-MM-yyyy hh:mm a').format(updatedFrom),
+                DateFormat('dd-MM-yyyy hh:mm a').format(updatedTo),
+              ],
+            ],
+            lightBlue,
+            font,
+          ),
 
           pw.SizedBox(height: 30),
           pw.Center(
             child: pw.Text(
-              "We confirm your booking cancellation.\nWe hope to serve you again in the future.",
+              "The booking has been successfully rescheduled.\n We look forward to your visit!",
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(
                 fontWeight: pw.FontWeight.bold,
